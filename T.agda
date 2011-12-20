@@ -26,25 +26,7 @@ module GÖDEL-T where
   weaken s (e₁ $ e₂) = weaken s e₁ $ weaken s e₂
   weaken s zero = zero
 
-  subst : ∀{Γ A C} → (Γ' : List TTp) →
-          (e' : TExp Γ A) →
-          (e : TExp (Γ' ++ A :: Γ) C) →
-          TExp (Γ' ++ Γ) C
-  subst [] e' (var Z) = e'
-  subst [] e' (var (S n)) = var n -- shift up, since we are removing a thing from ctx
-  subst (_ :: Γ') e' (var Z) = var Z
-  subst (_ :: Γ') e' (var (S n)) = 
-    weaken LIST.SET.sub-cons (subst Γ' e' (var n))
-  subst Γ' e' (Λ e) = Λ (subst (_ :: Γ') e' e)
-  subst Γ' e' (e₁ $ e₂) = (subst Γ' e' e₁) $ (subst Γ' e' e₂)
-  subst Γ' e' zero = zero
-
-  -- could I use just a list? (yes, but not if I want an intrinsic encoding?)
-  {-
-  data TSubst (Γ : List TTp) : List TTp → Set where
-    [] : TSubst Γ []
-    _::_ : ∀{A Γ'} → (e' : TExp Γ A) → (γ : TSubst Γ Γ') → TSubst Γ (A :: Γ')
-  -}
+  -- substitutions
   TSubst : (Γ : List TTp) -> List TTp → Set
   TSubst Γ Γ' = ∀{A} (x : A ∈ Γ') -> TExp Γ A
 
@@ -69,24 +51,15 @@ module GÖDEL-T where
   ssubst Γ' γ (e₁ $ e₂) = (ssubst Γ' γ e₁) $ (ssubst Γ' γ e₂)
   ssubst Γ' γ zero = zero
 
-  subst1 : ∀{Γ A C} → (Γ' : List TTp) →
-           (e' : TExp Γ A) →
-           (e : TExp (Γ' ++ A :: Γ) C) →
-           TExp (Γ' ++ Γ) C
-  subst1 Γ' e' e = ssubst Γ' (extendγ emptyγ e') e
-
-{-
-  ssubst [] e' (var Z) = e'
-  ssubst [] e' (var (S n)) = var n -- shift up, since we are removing a thing from ctx
-  ssubst (_ :: Γ') e' (var Z) = var Z
-  ssubst (_ :: Γ') e' (var (S n)) = 
-    weaken LIST.SET.sub-cons (ssubst Γ' e' (var n))
-  ssubst Γ' e' (Λ e) = Λ (ssubst (_ :: Γ') e' e)
-  ssubst Γ' e' (e₁ $ e₂) = (ssubst Γ' e' e₁) $ (ssubst Γ' e' e₂)
-  ssubst Γ' e' zero = zero
--}
+  -- substituting one thing
+  subst : ∀{Γ A C} → (Γ' : List TTp) →
+          (e' : TExp Γ A) →
+          (e : TExp (Γ' ++ A :: Γ) C) →
+          TExp (Γ' ++ Γ) C
+  subst Γ' e' e = ssubst Γ' (extendγ emptyγ e') e
 
 
+  -- dynamic semantics
   data TVal : ∀{A} → TCExp A → Set where
     val-zero : TVal zero
     val-lam : ∀{A B} {e : TExp (A :: []) B} → TVal (Λ e)
