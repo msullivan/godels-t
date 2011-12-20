@@ -39,6 +39,54 @@ module GÖDEL-T where
   subst Γ' e' (e₁ $ e₂) = (subst Γ' e' e₁) $ (subst Γ' e' e₂)
   subst Γ' e' zero = zero
 
+  -- could I use just a list? (yes, but not if I want an intrinsic encoding?)
+  {-
+  data TSubst (Γ : List TTp) : List TTp → Set where
+    [] : TSubst Γ []
+    _::_ : ∀{A Γ'} → (e' : TExp Γ A) → (γ : TSubst Γ Γ') → TSubst Γ (A :: Γ')
+  -}
+  TSubst : (Γ : List TTp) -> List TTp → Set
+  TSubst Γ Γ' = ∀{A} (x : A ∈ Γ') -> TExp Γ A
+
+  emptyγ : ∀{Γ} -> TSubst Γ []
+  emptyγ ()
+
+  extendγ : ∀{Γ Γ' A} -> TSubst Γ Γ' -> TExp Γ A -> TSubst Γ (A :: Γ')
+  extendγ γ e Z = e
+  extendγ γ e (S n) = γ n
+
+
+  ssubst : ∀{Γ Γ'' C} → (Γ' : List TTp) →
+           (γ : TSubst Γ Γ'') →
+           (e : TExp (Γ' ++ Γ'' ++ Γ) C) →
+           TExp (Γ' ++ Γ) C
+  ssubst {Γ} {Γ''} [] γ (var x) with LIST.split-append {xs = Γ''} x
+  ... | Inl y = γ y
+  ... | Inr y = var y
+  ssubst (_ :: Γ') γ (var Z) = var Z
+  ssubst (_ :: Γ') γ (var (S n)) = weaken LIST.SET.sub-cons (ssubst Γ' γ (var n))
+  ssubst Γ' γ (Λ e) = Λ (ssubst (_ :: Γ') γ e)
+  ssubst Γ' γ (e₁ $ e₂) = (ssubst Γ' γ e₁) $ (ssubst Γ' γ e₂)
+  ssubst Γ' γ zero = zero
+
+  subst1 : ∀{Γ A C} → (Γ' : List TTp) →
+           (e' : TExp Γ A) →
+           (e : TExp (Γ' ++ A :: Γ) C) →
+           TExp (Γ' ++ Γ) C
+  subst1 Γ' e' e = ssubst Γ' (extendγ emptyγ e') e
+
+{-
+  ssubst [] e' (var Z) = e'
+  ssubst [] e' (var (S n)) = var n -- shift up, since we are removing a thing from ctx
+  ssubst (_ :: Γ') e' (var Z) = var Z
+  ssubst (_ :: Γ') e' (var (S n)) = 
+    weaken LIST.SET.sub-cons (ssubst Γ' e' (var n))
+  ssubst Γ' e' (Λ e) = Λ (ssubst (_ :: Γ') e' e)
+  ssubst Γ' e' (e₁ $ e₂) = (ssubst Γ' e' e₁) $ (ssubst Γ' e' e₂)
+  ssubst Γ' e' zero = zero
+-}
+
+
   data TVal : ∀{A} → TCExp A → Set where
     val-zero : TVal zero
     val-lam : ∀{A B} {e : TExp (A :: []) B} → TVal (Λ e)
@@ -119,15 +167,8 @@ module GÖDEL-T where
   HT-halts {nat} h = h
   HT-halts {A ⇒ B} (h , _) = h
 
-  -- could I use just a list? (yes, but not if I want an intrinsic encoding?)
-  data TSubst : List TTp → Set where
-    [] : TSubst []
-    _::_ : ∀{A Γ} → (e' : TCExp A) → (γ : TSubst Γ) → TSubst (A :: Γ)
 
-  ssubst : ∀{Γ A} → TSubst Γ → TExp Γ A → TCExp A
-  ssubst [] e = e
-  ssubst (e' :: γ) e = ssubst γ (subst [] (weaken (LIST.SET.sub-appendr [] _) e') e)
-
+{-
   -- extend HT to substitutions
   HTg : (Γ : List TTp) → TSubst Γ → Set
   HTg [] [] = ⊤
@@ -139,3 +180,4 @@ module GÖDEL-T where
   all-HT (Λ e) H = {!!}
   all-HT (e₁ $ e₂) H = {!!}
   all-HT zero H = halts {!!} val-zero
+-}
