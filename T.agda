@@ -27,36 +27,36 @@ module GÖDEL-T where
   weaken s zero = zero
 
   -- substitutions
-  TSubst : (Γ : List TTp) -> List TTp → Set
-  TSubst Γ Γ' = ∀{A} (x : A ∈ Γ') -> TExp Γ A
+  TSubst : List TTp → Set
+  TSubst Γ = ∀{A} (x : A ∈ Γ) -> TCExp A
 
-  emptyγ : ∀{Γ} -> TSubst Γ []
+  emptyγ : TSubst []
   emptyγ ()
 
-  extendγ : ∀{Γ Γ' A} -> TSubst Γ Γ' -> TExp Γ A -> TSubst Γ (A :: Γ')
+  extendγ : ∀{Γ A} -> TSubst Γ -> TCExp A -> TSubst (A :: Γ)
   extendγ γ e Z = e
   extendγ γ e (S n) = γ n
 
 
-  ssubst : ∀{Γ Γ'' C} → (Γ' : List TTp) →
-           (γ : TSubst Γ Γ'') →
-           (e : TExp (Γ' ++ Γ'' ++ Γ) C) →
-           TExp (Γ' ++ Γ) C
-  ssubst {Γ} {Γ''} [] γ (var x) with LIST.split-append {xs = Γ''} x
-  ... | Inl y = γ y
-  ... | Inr y = var y
+  ssubst : ∀{Γ C} → (Γ' : List TTp) →
+           (γ : TSubst Γ) →
+           (e : TExp (Γ' ++ Γ) C) →
+           TExp (Γ') C
+  ssubst [] γ (var x) = γ x
   ssubst (_ :: Γ') γ (var Z) = var Z
   ssubst (_ :: Γ') γ (var (S n)) = weaken LIST.SET.sub-cons (ssubst Γ' γ (var n))
   ssubst Γ' γ (Λ e) = Λ (ssubst (_ :: Γ') γ e)
   ssubst Γ' γ (e₁ $ e₂) = (ssubst Γ' γ e₁) $ (ssubst Γ' γ e₂)
   ssubst Γ' γ zero = zero
 
+
   -- substituting one thing
-  subst : ∀{Γ A C} → (Γ' : List TTp) →
-          (e' : TExp Γ A) →
-          (e : TExp (Γ' ++ A :: Γ) C) →
-          TExp (Γ' ++ Γ) C
+  subst : ∀{A C} → (Γ' : List TTp) →
+          (e' : TCExp A) →
+          (e : TExp (Γ' ++ A :: []) C) →
+          TExp (Γ') C
   subst Γ' e' e = ssubst Γ' (extendγ emptyγ e') e
+
 
 
   -- dynamic semantics
@@ -89,6 +89,8 @@ module GÖDEL-T where
   ... | prog-val D = prog-step (step-beta D)
   ... | prog-step D' = prog-step (step-app-r val-lam D')
   progress zero = prog-val val-zero
+
+
 
   -- define iterated stepping...
   data _~>*_ : ∀{A} → TCExp A → TCExp A → Set where
@@ -141,21 +143,21 @@ module GÖDEL-T where
   HT-halts {A ⇒ B} (h , _) = h
 
   -- extend HT to substitutions
-  HTΓ : (Γ : List TTp) → TSubst [] Γ → Set
+  HTΓ : (Γ : List TTp) → TSubst Γ → Set
   HTΓ Γ γ = ∀{A} (x : A ∈ Γ) -> HT A (γ x)
 
-  emptyHTΓ : ∀{η : TSubst [] []} -> HTΓ [] η
+  emptyHTΓ : ∀{η : TSubst []} -> HTΓ [] η
   emptyHTΓ ()
 
-  extendHTΓ : ∀{Γ A} {e : TCExp A} {γ : TSubst [] Γ} ->
+  extendHTΓ : ∀{Γ A} {e : TCExp A} {γ : TSubst Γ} ->
               HTΓ Γ γ -> HT A e -> HTΓ (A :: Γ) (extendγ γ e)
   extendHTΓ η HT Z = HT
   extendHTΓ η HT (S n) = η n
 
-  -- the main theorem; I don't like having to do the weakening bs.
-  all-HT : ∀{Γ A} {γ : TSubst [] Γ} → (e : TExp Γ A) → HTΓ Γ γ
-            → HT A (ssubst [] γ (weaken (LIST.SET.sub-appendr _ []) e))
-  all-HT (var x) η = ?
+  -- the main theorem
+  all-HT : ∀{Γ A} {γ : TSubst Γ} → (e : TExp Γ A) → HTΓ Γ γ
+            → HT A (ssubst [] γ e)
+  all-HT (var x) η = {!!}
   all-HT (Λ e) η = {!!}
   all-HT (e₁ $ e₂) η = {!!}
   all-HT zero η = halts eval-refl val-zero
