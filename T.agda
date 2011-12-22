@@ -140,17 +140,22 @@ module GÖDEL-T where
   HT-halts {nat} h = h
   HT-halts {A ⇒ B} (h , _) = h
 
-
-{-
   -- extend HT to substitutions
-  HTg : (Γ : List TTp) → TSubst Γ → Set
-  HTg [] [] = ⊤
-  HTg (A :: Γ) (e :: γ) = (HT A e) × (HTg Γ γ)
+  HTΓ : (Γ : List TTp) → TSubst [] Γ → Set
+  HTΓ Γ γ = ∀{A} (x : A ∈ Γ) -> HT A (γ x)
 
-  -- the main theorem
-  all-HT : ∀{Γ A γ} → (e : TExp Γ A) → HTg Γ γ → HT A (ssubst γ e)
-  all-HT (var x) H = {!!}
-  all-HT (Λ e) H = {!!}
-  all-HT (e₁ $ e₂) H = {!!}
-  all-HT zero H = halts {!!} val-zero
--}
+  emptyHTΓ : ∀{η : TSubst [] []} -> HTΓ [] η
+  emptyHTΓ ()
+
+  extendHTΓ : ∀{Γ A} {e : TCExp A} {γ : TSubst [] Γ} ->
+              HTΓ Γ γ -> HT A e -> HTΓ (A :: Γ) (extendγ γ e)
+  extendHTΓ η HT Z = HT
+  extendHTΓ η HT (S n) = η n
+
+  -- the main theorem; I don't like having to do the weakening bs.
+  all-HT : ∀{Γ A} {γ : TSubst [] Γ} → (e : TExp Γ A) → HTΓ Γ γ
+            → HT A (ssubst [] γ (weaken (LIST.SET.sub-appendr _ []) e))
+  all-HT (var x) η = ?
+  all-HT (Λ e) η = {!!}
+  all-HT (e₁ $ e₂) η = {!!}
+  all-HT zero η = halts eval-refl val-zero
