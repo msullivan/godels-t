@@ -162,8 +162,7 @@ module GÖDEL-T where
   head-expansion {nat} eval (halts eval' val) = halts (eval-trans eval eval') val
   head-expansion {A ⇒ B} eval (halts eval' val , ht-logic) =
      halts (eval-trans eval eval') val ,
-     (λ e' ht → {!!})
--- (head-expansion {!eval-app-r !}) (ht-logic e' ht))
+     (λ e' ht → head-expansion (eval-app-l eval) (ht-logic e' ht))
 
   mutual
     lam-case : ∀ {A B Γ} {γ : TSubst Γ} → (e : TExp (A :: Γ) B) → HTΓ Γ γ →
