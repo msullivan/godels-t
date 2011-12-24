@@ -105,6 +105,9 @@ module GÖDEL-T where
   eval-trans eval-refl E2 = E2
   eval-trans (eval-cons S1 E1') E2 = eval-cons S1 (eval-trans E1' E2)
 
+  eval-step : ∀{A} {e e' : TCExp A} → e ~> e' → e ~>* e'
+  eval-step s = eval-cons s eval-refl
+
   -- stupid compatibility rules that lift the step compat rules to
   -- the eval level
   eval-app-l : ∀{A B} {e₁ e₁' : TCExp (A ⇒ B)} {e₂ : TCExp A} → 
@@ -112,10 +115,10 @@ module GÖDEL-T where
   eval-app-l eval-refl = eval-refl
   eval-app-l (eval-cons S1 D) = eval-cons (step-app-l S1) (eval-app-l D)
 
-  eval-app-r : ∀{A B} {e₁ : TCExp (A ⇒ B)} {e₂ e₂' : TCExp A} → 
+  eval-app-r : ∀{A B} {e₂ e₂' : TCExp A} → (e₁ : TCExp (A ⇒ B)) →
                 TVal e₁ → e₂ ~>* e₂' → (e₁ $ e₂) ~>* (e₁ $ e₂')
-  eval-app-r V eval-refl = eval-refl
-  eval-app-r V (eval-cons S1 D) = eval-cons (step-app-r V S1) (eval-app-r V D)
+  eval-app-r _ V eval-refl = eval-refl
+  eval-app-r _ V (eval-cons S1 D) = eval-cons (step-app-r V S1) (eval-app-r _ V D)
 
   -- Should I use a record, or the product thing, or something else?
   data THalts : ∀{A} → TCExp A → Set where
@@ -138,9 +141,10 @@ module GÖDEL-T where
   HT (A ⇒ B) e = THalts e × ((e' : TCExp A) → HT A e' → HT B (e $ e'))
 
   -- proof that hereditary termination implies termination
-  HT-halts : ∀{A e} → HT A e → THalts e
-  HT-halts {nat} h = h
-  HT-halts {A ⇒ B} (h , _) = h
+  HT-halts : ∀{A} → (e : TCExp A) → HT A e → THalts e
+  HT-halts {nat} _ h = h
+  HT-halts {A ⇒ B} _ (h , _) = h
+
 
   -- extend HT to substitutions
   HTΓ : (Γ : List TTp) → TSubst Γ → Set
@@ -154,10 +158,30 @@ module GÖDEL-T where
   extendHTΓ η HT Z = HT
   extendHTΓ η HT (S n) = η n
 
-  -- the main theorem
-  all-HT : ∀{Γ A} {γ : TSubst Γ} → (e : TExp Γ A) → HTΓ Γ γ
-            → HT A (ssubst [] γ e)
-  all-HT (var x) η = {!!}
-  all-HT (Λ e) η = {!!}
-  all-HT (e₁ $ e₂) η = {!!}
-  all-HT zero η = halts eval-refl val-zero
+  head-expansion : ∀{A} {e e' : TCExp A} -> (e ~>* e') -> HT A e' -> HT A e
+  head-expansion {nat} eval (halts eval' val) = halts (eval-trans eval eval') val
+  head-expansion {A ⇒ B} eval (halts eval' val , ht-logic) =
+     halts (eval-trans eval eval') val ,
+     (λ e' ht → {!!})
+-- (head-expansion {!eval-app-r !}) (ht-logic e' ht))
+
+  mutual
+    lam-case : ∀ {A B Γ} {γ : TSubst Γ} → (e : TExp (A :: Γ) B) → HTΓ Γ γ →
+                 (e' : TCExp A) → HT A e' → HT B (Λ (ssubst (A :: []) γ e) $ e')
+    lam-case {A} {B} {Γ} {γ} e η e' ht' with all-HT e (extendHTΓ η ht')
+    ... | ht with HT-halts e' ht'
+    ... | halts steps' v' with eval-app-r (Λ (ssubst (_ :: []) γ e)) val-lam steps'
+    ... | x with eval-trans x (eval-step (step-beta v'))
+    -- gonna need to prove some substitution related lemma...
+    ... | y = {!!} --  head-expansion y ht
+
+    -- the main theorem
+    all-HT : ∀{Γ A} {γ : TSubst Γ} → (e : TExp Γ A) → HTΓ Γ γ
+              → HT A (ssubst [] γ e)
+    all-HT (var x) η = η x
+    all-HT (Λ e) η = 
+      (halts eval-refl val-lam) , 
+       lam-case e η
+    all-HT (e₁ $ e₂) η with all-HT e₁ η
+    ... | _ , HT₁ = HT₁ (ssubst [] _ e₂) (all-HT e₂ η)
+    all-HT zero η = halts eval-refl val-zero
