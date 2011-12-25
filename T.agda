@@ -5,6 +5,10 @@ open import Prelude
 _⊆_ : ∀{A} → List A → List A → Set
 xs ⊆ ys = LIST.SET.Sub xs ys
 
+concats : ∀{A : Set} → List (List A) → List A
+concats [] = []
+concats (xs :: xss) = xs ++ concats xss
+
 -- Gödel's T
 module GÖDEL-T where
 
