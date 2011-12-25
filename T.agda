@@ -82,6 +82,9 @@ module GÖDEL-T where
                     ssubst [] (e' :: γ) e
   combine-subst-noob _ e e' = combine-subst [] e (e' :: [])
 
+  --empty-subst-nop : ∀{A Γ} → (e : TExp Γ A) → e ≡ ssubst Γ [] e
+  empty-subst-nop : ∀{A} → (e : TCExp A) → e ≡ ssubst [] [] e
+  empty-subst-nop = {!!}
 
 {-
   -- combining lemma
@@ -231,3 +234,10 @@ module GÖDEL-T where
     all-HT (e₁ $ e₂) η with all-HT e₁ η
     ... | _ , HT₁ = HT₁ (ssubst [] _ e₂) (all-HT e₂ η)
     all-HT zero η = halts eval-refl val-zero
+
+{-
+  all-halt : ∀{A} → (e : TCExp A) → THalts e
+  all-halt e with all-HT e emptyHTΓ
+  ... | ht with (empty-subst-nop e)
+  ... | eq = {!eq!}
+-}
