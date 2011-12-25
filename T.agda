@@ -27,22 +27,25 @@ module GÖDEL-T where
   weaken s zero = zero
 
   -- substitutions
-  TSubst : List TTp → Set
-  TSubst Γ = ∀{A} (x : A ∈ Γ) -> TCExp A
+  data TSubst : List TTp → Set where
+    [] : TSubst []
+    _::_ : ∀{Γ A} → TCExp A → TSubst Γ → TSubst (A :: Γ)
 
-  emptyγ : TSubst []
-  emptyγ ()
+  lookup : ∀{A Γ} -> TSubst Γ -> (x : A ∈ Γ) -> TCExp A
+  lookup [] ()
+  lookup (e :: _) Z = e
+  lookup (_ :: es) (S n) = lookup es n
 
-  extendγ : ∀{Γ A} -> TSubst Γ -> TCExp A -> TSubst (A :: Γ)
-  extendγ γ e Z = e
-  extendγ γ e (S n) = γ n
-
-
+  infixr 5 _+++_
+  _+++_ : ∀{Γ Γ'} → TSubst Γ → TSubst Γ' → TSubst (Γ ++ Γ')
+  [] +++ γ' = γ'
+  (e :: γ) +++ γ' = e :: (γ +++ γ')
+  
   ssubst : ∀{Γ C} → (Γ' : List TTp) →
            (γ : TSubst Γ) →
            (e : TExp (Γ' ++ Γ) C) →
            TExp (Γ') C
-  ssubst [] γ (var x) = γ x
+  ssubst [] γ (var x) = lookup γ x
   ssubst (_ :: Γ') γ (var Z) = var Z
   ssubst (_ :: Γ') γ (var (S n)) = weaken LIST.SET.sub-cons (ssubst Γ' γ (var n))
   ssubst Γ' γ (Λ e) = Λ (ssubst (_ :: Γ') γ e)
@@ -55,10 +58,39 @@ module GÖDEL-T where
           (e' : TCExp A) →
           (e : TExp (Γ' ++ A :: []) C) →
           TExp (Γ') C
-  subst Γ' e' e = ssubst Γ' (extendγ emptyγ e') e
+  subst Γ' e' e = ssubst Γ' (e' :: []) e
+
+  -- combining lemma
+  -- I'm really kind of worried about this.
+  combine-subst : ∀ {Γ Γ' C} {γ : TSubst Γ} →
+                    (Γ'' : List TTp) →
+                    (e : TExp (Γ'' ++ Γ' ++ Γ) C) →
+                    (γ' : TSubst Γ') → 
+                    ssubst Γ'' γ' (ssubst (Γ'' ++ Γ') γ 
+                         (ID.coe1 (λ x → TExp x C) (LIST.assoc-append {as = Γ''}) e)) ≡
+                    ssubst Γ'' (γ' +++ γ) e
+  combine-subst Γ' e e' = {!!}
 
 
-
+{-
+  -- combining lemma
+  combine-subst : ∀ {A Γ C} {γ : TSubst Γ} →
+                    (Γ' : List TTp) →
+                    (e : TExp (Γ' ++ A :: Γ) C) →
+                    (e' : TCExp A) → 
+                    ssubst Γ' (e' :: []) 
+                      (ssubst (Γ' ++ A :: []) γ (ID.coe1 (λ x → TExp x C) {!!} e)) ≡
+                      ssubst Γ' (e' :: γ) e
+  combine-subst = {!!}
+-}
+{-
+  combine-subst Γ' (var Z) e' = Refl
+  combine-subst {A} {.[]} {C} {[]} Γ' (var (S ())) e'
+  combine-subst {A} {.(_ :: _)} {C} {y :: y'} Γ' (var (S n)) e' = {!!}
+  combine-subst Γ' (Λ e) e' = resp1 Λ {!!}
+  combine-subst Γ' (e₁ $ e₂) e' = resp2 _$_ (combine-subst Γ' e₁ e') (combine-subst Γ' e₂ e')
+  combine-subst Γ' zero e' = Refl
+-}
   -- dynamic semantics
   data TVal : ∀{A} → TCExp A → Set where
     val-zero : TVal zero
@@ -66,7 +98,7 @@ module GÖDEL-T where
 
   -- only worry about closed steps; embed preservation in the statement
   data _~>_ : ∀{A} → TCExp A → TCExp A → Set where
-    step-app-l : ∀{A B } {e₁ e₁' : TCExp (A ⇒ B)} {e₂ : TCExp A} → 
+    step-app-l : ∀{A B} {e₁ e₁' : TCExp (A ⇒ B)} {e₂ : TCExp A} → 
                   e₁ ~> e₁' → (e₁ $ e₂) ~> (e₁' $ e₂)
     step-app-r : ∀{A B} {e₁ : TCExp (A ⇒ B)} {e₂ e₂' : TCExp A} → 
                   TVal e₁ → e₂ ~> e₂' → (e₁ $ e₂) ~> (e₁ $ e₂')
@@ -148,13 +180,14 @@ module GÖDEL-T where
 
   -- extend HT to substitutions
   HTΓ : (Γ : List TTp) → TSubst Γ → Set
-  HTΓ Γ γ = ∀{A} (x : A ∈ Γ) -> HT A (γ x)
+  HTΓ Γ γ = ∀{A} (x : A ∈ Γ) -> HT A (lookup γ x)
 
   emptyHTΓ : ∀{η : TSubst []} -> HTΓ [] η
   emptyHTΓ ()
 
+
   extendHTΓ : ∀{Γ A} {e : TCExp A} {γ : TSubst Γ} ->
-              HTΓ Γ γ -> HT A e -> HTΓ (A :: Γ) (extendγ γ e)
+              HTΓ Γ γ -> HT A e -> HTΓ (A :: Γ) (e :: γ)
   extendHTΓ η HT Z = HT
   extendHTΓ η HT (S n) = η n
 
@@ -167,12 +200,12 @@ module GÖDEL-T where
   mutual
     lam-case : ∀ {A B Γ} {γ : TSubst Γ} → (e : TExp (A :: Γ) B) → HTΓ Γ γ →
                  (e' : TCExp A) → HT A e' → HT B (Λ (ssubst (A :: []) γ e) $ e')
-    lam-case {A} {B} {Γ} {γ} e η e' ht' with all-HT e (extendHTΓ η ht')
+    lam-case {A} {B} {Γ} {γ} e η e' ht' with all-HT {γ = e' :: γ} e (extendHTΓ η ht')
     ... | ht with HT-halts e' ht'
     ... | halts steps' v' with eval-app-r (Λ (ssubst (_ :: []) γ e)) val-lam steps'
     ... | x with eval-trans x (eval-step (step-beta v'))
     -- gonna need to prove some substitution related lemma...
-    ... | y = {!!} --  head-expansion y ht
+    ... | y = {!!} -- head-expansion y ht
 
     -- the main theorem
     all-HT : ∀{Γ A} {γ : TSubst Γ} → (e : TExp Γ A) → HTΓ Γ γ
