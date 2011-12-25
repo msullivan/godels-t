@@ -83,8 +83,8 @@ module GÖDEL-T where
   combine-subst-noob _ e e' = combine-subst [] e (e' :: [])
 
   --empty-subst-nop : ∀{A Γ} → (e : TExp Γ A) → e ≡ ssubst Γ [] e
-  empty-subst-nop : ∀{A} → (e : TCExp A) → e ≡ ssubst [] [] e
-  empty-subst-nop = {!!}
+  --empty-subst-nop : ∀{A} → (e : TCExp A) → e ≡ ssubst [] [] e
+  --empty-subst-nop = {!!}
 
 {-
   -- combining lemma
