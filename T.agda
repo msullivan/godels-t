@@ -71,6 +71,13 @@ module GÖDEL-T where
                     ssubst Γ'' (γ' +++ γ) e
   combine-subst Γ' e e' = {!!}
 
+  combine-subst-noob : ∀ {Γ A C} → (γ : TSubst Γ) →
+                    (e : TExp (A :: Γ) C) →
+                    (e' : TCExp A) →
+                    ssubst [] (e' :: []) (ssubst [ A ] γ e) ≡
+                    ssubst [] (e' :: γ) e
+  combine-subst-noob _ e e' = combine-subst [] e (e' :: [])
+
 
 {-
   -- combining lemma
@@ -137,6 +144,8 @@ module GÖDEL-T where
   eval-trans eval-refl E2 = E2
   eval-trans (eval-cons S1 E1') E2 = eval-cons S1 (eval-trans E1' E2)
 
+
+
   eval-step : ∀{A} {e e' : TCExp A} → e ~> e' → e ~>* e'
   eval-step s = eval-cons s eval-refl
 
@@ -154,7 +163,7 @@ module GÖDEL-T where
 
   -- Should I use a record, or the product thing, or something else?
   data THalts : ∀{A} → TCExp A → Set where
-    halts : {A : TTp} {e e' : TCExp A} → (e ~>* e') → TVal e' → THalts e
+    halts : {A : TTp} {e e' : TCExp A} → (eval : (e ~>* e')) → (val : TVal e') → THalts e
 
   -- extract that the lhs must halt if its application to something halts
   lhs-halt : {A B : TTp} {e : TCExp (A ⇒ B)} {e' : TCExp A} → 
@@ -197,15 +206,36 @@ module GÖDEL-T where
      halts (eval-trans eval eval') val ,
      (λ e' ht → head-expansion (eval-app-l eval) (ht-logic e' ht))
 
+
+--  eval-trans eval-refl E2 = E2
+--  eval-trans (eval-cons S1 E1') E2 = eval-cons S1 (eval-trans E1' E2)
+  halting-expansion : ∀{A} {e e' : TCExp A} -> (e ~>* e') -> THalts e -> THalts e'
+  halting-expansion eval (halts eval' val) = {!!}
+
+{-
+  halting-expansion eval-refl h = h
+  halting-expansion (eval-cons step eval) (halts eval-refl val) = {!!}
+  halting-expansion (eval-cons step eval) (halts (eval-cons y y') val) = {!!}
+-}
+  tail-expansion : ∀{A} {e e' : TCExp A} -> (e ~>* e') -> HT A e -> HT A e'
+  tail-expansion {nat} eval h = halting-expansion eval h
+  tail-expansion {A ⇒ B} eval (h , ht-logic) = 
+      halting-expansion eval h ,
+      (λ e' ht → tail-expansion (eval-app-l eval) (ht-logic e' ht))
+
   mutual
     lam-case : ∀ {A B Γ} {γ : TSubst Γ} → (e : TExp (A :: Γ) B) → HTΓ Γ γ →
                  (e' : TCExp A) → HT A e' → HT B (Λ (ssubst (A :: []) γ e) $ e')
-    lam-case {A} {B} {Γ} {γ} e η e' ht' with all-HT {γ = e' :: γ} e (extendHTΓ η ht')
-    ... | ht with HT-halts e' ht'
-    ... | halts steps' v' with eval-app-r (Λ (ssubst (_ :: []) γ e)) val-lam steps'
-    ... | x with eval-trans x (eval-step (step-beta v'))
+    lam-case {A} {B} {Γ} {γ} e η e' ht' with HT-halts e' ht'
+    ... | halts {e' = e''} steps' v' with tail-expansion steps' ht'
+    ... | ht'' with all-HT {γ = e'' :: γ} e (extendHTΓ η ht'')
+
+    ... | ht with eval-app-r (Λ (ssubst (_ :: []) γ e)) val-lam steps'
+    ... | steps-compat with eval-trans steps-compat (eval-step (step-beta v'))
     -- gonna need to prove some substitution related lemma...
-    ... | y = {!!} -- head-expansion y ht
+    ... | steps-full with combine-subst-noob γ e _ -- e''
+    ... | eq = head-expansion {e = (Λ (ssubst (A :: []) γ e) $ e')} 
+               (ID.coe1 (λ x → (Λ (ssubst (A :: []) γ e) $ e') ~>* x) eq steps-full) ht
 
     -- the main theorem
     all-HT : ∀{Γ A} {γ : TSubst Γ} → (e : TExp Γ A) → HTΓ Γ γ
