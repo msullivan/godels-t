@@ -69,7 +69,7 @@ module GÖDEL-T where
                     ssubst Γ'' γ' (ssubst (Γ'' ++ Γ') γ 
                          (ID.coe1 (λ x → TExp x C) (LIST.assoc-append {as = Γ''}) e)) ≡
                     ssubst Γ'' (γ' +++ γ) e
-  combine-subst Γ' e e' = {!!}
+  combine-subst Γ'' e γ' = {!!}
 
   combine-subst-noob : ∀ {Γ A C} → (γ : TSubst Γ) →
                     (e : TExp (A :: Γ) C) →
@@ -104,14 +104,15 @@ module GÖDEL-T where
     val-lam : ∀{A B} {e : TExp (A :: []) B} → TVal (Λ e)
 
   -- only worry about closed steps; embed preservation in the statement
+  -- the evaluation semantics are non-deterministic; we could get rid of step-app-r
   data _~>_ : ∀{A} → TCExp A → TCExp A → Set where
     step-app-l : ∀{A B} {e₁ e₁' : TCExp (A ⇒ B)} {e₂ : TCExp A} → 
                   e₁ ~> e₁' → (e₁ $ e₂) ~> (e₁' $ e₂)
     step-app-r : ∀{A B} {e₁ : TCExp (A ⇒ B)} {e₂ e₂' : TCExp A} → 
-                  TVal e₁ → e₂ ~> e₂' → (e₁ $ e₂) ~> (e₁ $ e₂')
+                  e₂ ~> e₂' → (e₁ $ e₂) ~> (e₁ $ e₂')
     step-beta  : ∀{A B} {e : TExp (A :: []) B} {e' : TCExp A} →
-                  TVal e' →
                   ((Λ e) $ e') ~> (subst [] e' e)
+
 
   -- Define a datatype representing that a term satisfies progress
   data TProgress : ∀{A} → TCExp A → Set where
@@ -125,8 +126,8 @@ module GÖDEL-T where
   progress (e₁ $ e₂) with progress e₁
   progress (e₁ $ e₂) | prog-step D = prog-step (step-app-l D)
   progress (.(Λ e) $ e₂) | prog-val (val-lam {_} {_} {e}) with progress e₂
-  ... | prog-val D = prog-step (step-beta D)
-  ... | prog-step D' = prog-step (step-app-r val-lam D')
+  ... | prog-val D = prog-step step-beta
+  ... | prog-step D' = prog-step (step-app-r D')
   progress zero = prog-val val-zero
 
 
@@ -144,8 +145,6 @@ module GÖDEL-T where
   eval-trans eval-refl E2 = E2
   eval-trans (eval-cons S1 E1') E2 = eval-cons S1 (eval-trans E1' E2)
 
-
-
   eval-step : ∀{A} {e e' : TCExp A} → e ~> e' → e ~>* e'
   eval-step s = eval-cons s eval-refl
 
@@ -157,15 +156,17 @@ module GÖDEL-T where
   eval-app-l (eval-cons S1 D) = eval-cons (step-app-l S1) (eval-app-l D)
 
   eval-app-r : ∀{A B} {e₂ e₂' : TCExp A} → (e₁ : TCExp (A ⇒ B)) →
-                TVal e₁ → e₂ ~>* e₂' → (e₁ $ e₂) ~>* (e₁ $ e₂')
-  eval-app-r _ V eval-refl = eval-refl
-  eval-app-r _ V (eval-cons S1 D) = eval-cons (step-app-r V S1) (eval-app-r _ V D)
+                e₂ ~>* e₂' → (e₁ $ e₂) ~>* (e₁ $ e₂')
+  eval-app-r _ eval-refl = eval-refl
+  eval-app-r _ (eval-cons S1 D) = eval-cons (step-app-r S1) (eval-app-r _ D)
+
 
   -- Should I use a record, or the product thing, or something else?
   data THalts : ∀{A} → TCExp A → Set where
     halts : {A : TTp} {e e' : TCExp A} → (eval : (e ~>* e')) → (val : TVal e') → THalts e
 
   -- extract that the lhs must halt if its application to something halts
+{-
   lhs-halt : {A B : TTp} {e : TCExp (A ⇒ B)} {e' : TCExp A} → 
               THalts (e $ e') → THalts e
   lhs-halt (halts eval-refl ())
@@ -173,7 +174,7 @@ module GÖDEL-T where
   ... | halts E' V' = halts (eval-cons S1 E') V'
   lhs-halt (halts (eval-cons (step-app-r V1 S2) E) V2) = halts eval-refl V1
   lhs-halt (halts (eval-cons (step-beta V1) E) V2) = halts eval-refl val-lam
-
+-}
 
   -- definition of hereditary termination
   HT : (A : TTp) → TCExp A → Set
@@ -207,34 +208,13 @@ module GÖDEL-T where
      (λ e' ht → head-expansion (eval-app-l eval) (ht-logic e' ht))
 
 
---  eval-trans eval-refl E2 = E2
---  eval-trans (eval-cons S1 E1') E2 = eval-cons S1 (eval-trans E1' E2)
-  halting-expansion : ∀{A} {e e' : TCExp A} -> (e ~>* e') -> THalts e -> THalts e'
-  halting-expansion eval (halts eval' val) = {!!}
-
-{-
-  halting-expansion eval-refl h = h
-  halting-expansion (eval-cons step eval) (halts eval-refl val) = {!!}
-  halting-expansion (eval-cons step eval) (halts (eval-cons y y') val) = {!!}
--}
-  tail-expansion : ∀{A} {e e' : TCExp A} -> (e ~>* e') -> HT A e -> HT A e'
-  tail-expansion {nat} eval h = halting-expansion eval h
-  tail-expansion {A ⇒ B} eval (h , ht-logic) = 
-      halting-expansion eval h ,
-      (λ e' ht → tail-expansion (eval-app-l eval) (ht-logic e' ht))
-
   mutual
     lam-case : ∀ {A B Γ} {γ : TSubst Γ} → (e : TExp (A :: Γ) B) → HTΓ Γ γ →
                  (e' : TCExp A) → HT A e' → HT B (Λ (ssubst (A :: []) γ e) $ e')
-    lam-case {A} {B} {Γ} {γ} e η e' ht' with HT-halts e' ht'
-    ... | halts {e' = e''} steps' v' with tail-expansion steps' ht'
-    ... | ht'' with all-HT {γ = e'' :: γ} e (extendHTΓ η ht'')
-
-    ... | ht with eval-app-r (Λ (ssubst (_ :: []) γ e)) val-lam steps'
-    ... | steps-compat with eval-trans steps-compat (eval-step (step-beta v'))
-    -- gonna need to prove some substitution related lemma...
-    ... | steps-full with combine-subst-noob γ e _ -- e''
-    ... | eq = head-expansion {e = (Λ (ssubst (A :: []) γ e) $ e')} 
+    lam-case {A} {B} {Γ} {γ} e η e' ht' with all-HT {γ = e' :: γ} e (extendHTΓ η ht')
+    ... | ht with eval-step step-beta
+    ... | steps-full with combine-subst-noob γ e _
+    ... | eq = head-expansion
                (ID.coe1 (λ x → (Λ (ssubst (A :: []) γ e) $ e') ~>* x) eq steps-full) ht
 
     -- the main theorem
