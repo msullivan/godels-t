@@ -16,7 +16,9 @@ module GÖDEL-T where
     nat : TTp
     _⇒_ : (A B : TTp) → TTp
 
-  data TExp (Γ : List TTp) : TTp → Set where
+  Ctx = List TTp
+
+  data TExp (Γ : Ctx) : TTp → Set where
     var : ∀{A} (x : A ∈ Γ) → TExp Γ A
     Λ : ∀{A B} (e : TExp (A :: Γ) B) → TExp Γ (A ⇒ B)
     _$_ : ∀{A B} (e₁ : TExp Γ (A ⇒ B)) (e₂ : TExp Γ A) → TExp Γ B
@@ -31,7 +33,7 @@ module GÖDEL-T where
   weaken s zero = zero
 
   -- substitutions
-  data TSubst : List TTp → Set where
+  data TSubst : Ctx → Set where
     [] : TSubst []
     _::_ : ∀{Γ A} → TCExp A → TSubst Γ → TSubst (A :: Γ)
 
@@ -45,7 +47,7 @@ module GÖDEL-T where
   [] +++ γ' = γ'
   (e :: γ) +++ γ' = e :: (γ +++ γ')
   
-  ssubst : ∀{Γ C} → (Γ' : List TTp) →
+  ssubst : ∀{Γ C} → (Γ' : Ctx) →
            (γ : TSubst Γ) →
            (e : TExp (Γ' ++ Γ) C) →
            TExp (Γ') C
@@ -58,7 +60,7 @@ module GÖDEL-T where
 
 
   -- substituting one thing
-  subst : ∀{A C} → (Γ' : List TTp) →
+  subst : ∀{A C} → (Γ' : Ctx) →
           (e' : TCExp A) →
           (e : TExp (Γ' ++ A :: []) C) →
           TExp (Γ') C
@@ -67,7 +69,7 @@ module GÖDEL-T where
   -- combining lemma
   -- I'm really kind of worried about this.
   combine-subst : ∀ {Γ Γ' C} {γ : TSubst Γ} →
-                    (Γ'' : List TTp) →
+                    (Γ'' : Ctx) →
                     (e : TExp (Γ'' ++ Γ' ++ Γ) C) →
                     (γ' : TSubst Γ') → 
                     ssubst Γ'' γ' (ssubst (Γ'' ++ Γ') γ 
@@ -89,7 +91,7 @@ module GÖDEL-T where
 {-
   -- combining lemma
   combine-subst : ∀ {A Γ C} {γ : TSubst Γ} →
-                    (Γ' : List TTp) →
+                    (Γ' : Ctx) →
                     (e : TExp (Γ' ++ A :: Γ) C) →
                     (e' : TCExp A) → 
                     ssubst Γ' (e' :: []) 
@@ -196,7 +198,7 @@ module GÖDEL-T where
 
 
   -- extend HT to substitutions
-  HTΓ : (Γ : List TTp) → TSubst Γ → Set
+  HTΓ : (Γ : Ctx) → TSubst Γ → Set
   HTΓ Γ γ = ∀{A} (x : A ∈ Γ) -> HT A (lookup γ x)
 
   emptyHTΓ : ∀{η : TSubst []} -> HTΓ [] η
