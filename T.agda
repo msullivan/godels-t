@@ -33,60 +33,38 @@ module GÖDEL-T where
   weaken s zero = zero
 
   -- substitutions
-  data TSubst : Ctx → Set where
-    [] : TSubst []
-    _::_ : ∀{Γ A} → TCExp A → TSubst Γ → TSubst (A :: Γ)
+  data TSubst : Ctx → Ctx → Set where
+    [] : ∀{Γ} → TSubst [] Γ
+    _::_ : ∀{Γ Γ' A} → TExp Γ' A → TSubst Γ Γ' → TSubst (A :: Γ) Γ'
 
-  lookup : ∀{A Γ} -> TSubst Γ -> (x : A ∈ Γ) -> TCExp A
+  weakenγ : ∀{Γ Γ' Γ''} → (Γ' ⊆ Γ'') → TSubst Γ Γ' → TSubst Γ Γ''
+  weakenγ s [] = []
+  weakenγ s (e :: γ) = weaken s e :: weakenγ s γ
+
+
+  lookup : ∀{A Γ Γ'} -> TSubst Γ Γ' -> (x : A ∈ Γ) -> TExp Γ' A
   lookup [] ()
   lookup (e :: _) Z = e
   lookup (_ :: es) (S n) = lookup es n
 
-  infixr 5 _+++_
-  _+++_ : ∀{Γ Γ'} → TSubst Γ → TSubst Γ' → TSubst (Γ ++ Γ')
-  [] +++ γ' = γ'
-  (e :: γ) +++ γ' = e :: (γ +++ γ')
-  
-  ssubst : ∀{Γ C} → (Γ' : Ctx) →
-           (γ : TSubst Γ) →
-           (e : TExp (Γ' ++ Γ) C) →
-           TExp (Γ') C
-  ssubst [] γ (var x) = lookup γ x
-  ssubst (_ :: Γ') γ (var Z) = var Z
-  ssubst (_ :: Γ') γ (var (S n)) = weaken LIST.SET.sub-cons (ssubst Γ' γ (var n))
-  ssubst Γ' γ (Λ e) = Λ (ssubst (_ :: Γ') γ e)
-  ssubst Γ' γ (e₁ $ e₂) = (ssubst Γ' γ e₁) $ (ssubst Γ' γ e₂)
-  ssubst Γ' γ zero = zero
+  self-extendγ : ∀{Γ Γ' A} → TSubst Γ Γ' → TSubst (A :: Γ) (A :: Γ')
+  self-extendγ γ = (var Z) :: (weakenγ LIST.SET.sub-cons γ)
 
+  ssubst : ∀{Γ Γ' C} →
+           (γ : TSubst Γ Γ') →
+           (e : TExp Γ C) →
+           TExp Γ' C
+  ssubst γ (var x) = lookup γ x
+  ssubst γ (Λ e) = Λ (ssubst (self-extendγ γ) e)
+  ssubst γ (e₁ $ e₂) = (ssubst γ e₁) $ (ssubst γ e₂)
+  ssubst γ zero = zero
 
-  -- substituting one thing
-  subst : ∀{A C} → (Γ' : Ctx) →
+  -- substituting one closed thing
+  subst : ∀{A C} →
           (e' : TCExp A) →
-          (e : TExp (Γ' ++ A :: []) C) →
-          TExp (Γ') C
-  subst Γ' e' e = ssubst Γ' (e' :: []) e
-
-  -- combining lemma
-  -- I'm really kind of worried about this.
-  combine-subst : ∀ {Γ Γ' C} {γ : TSubst Γ} →
-                    (Γ'' : Ctx) →
-                    (e : TExp (Γ'' ++ Γ' ++ Γ) C) →
-                    (γ' : TSubst Γ') → 
-                    ssubst Γ'' γ' (ssubst (Γ'' ++ Γ') γ 
-                         (ID.coe1 (λ x → TExp x C) (LIST.assoc-append {as = Γ''}) e)) ≡
-                    ssubst Γ'' (γ' +++ γ) e
-  combine-subst Γ'' e γ' = {!!}
-
-  combine-subst-noob : ∀ {Γ A C} → (γ : TSubst Γ) →
-                    (e : TExp (A :: Γ) C) →
-                    (e' : TCExp A) →
-                    ssubst [] (e' :: []) (ssubst [ A ] γ e) ≡
-                    ssubst [] (e' :: γ) e
-  combine-subst-noob _ e e' = combine-subst [] e (e' :: [])
-
-  --empty-subst-nop : ∀{A Γ} → (e : TExp Γ A) → e ≡ ssubst Γ [] e
-  --empty-subst-nop : ∀{A} → (e : TCExp A) → e ≡ ssubst [] [] e
-  --empty-subst-nop = {!!}
+          (e : TExp (A :: []) C) →
+          TCExp C
+  subst e' e = ssubst (e' :: []) e
 
 {-
   -- combining lemma
@@ -99,14 +77,15 @@ module GÖDEL-T where
                       ssubst Γ' (e' :: γ) e
   combine-subst = {!!}
 -}
-{-
-  combine-subst Γ' (var Z) e' = Refl
-  combine-subst {A} {.[]} {C} {[]} Γ' (var (S ())) e'
-  combine-subst {A} {.(_ :: _)} {C} {y :: y'} Γ' (var (S n)) e' = {!!}
-  combine-subst Γ' (Λ e) e' = resp1 Λ {!!}
-  combine-subst Γ' (e₁ $ e₂) e' = resp2 _$_ (combine-subst Γ' e₁ e') (combine-subst Γ' e₂ e')
-  combine-subst Γ' zero e' = Refl
--}
+
+
+  combine-subst-noob : ∀ {Γ A C} → (γ : TSubst Γ []) →
+                    (e : TExp (A :: Γ) C) →
+                    (e' : TCExp A) →
+                    ssubst (e' :: []) (ssubst (self-extendγ γ) e) ≡
+                    ssubst (e' :: γ) e
+  combine-subst-noob = {!!}
+
   -- dynamic semantics
   data TVal : ∀{A} → TCExp A → Set where
     val-zero : TVal zero
@@ -120,7 +99,7 @@ module GÖDEL-T where
     step-app-r : ∀{A B} {e₁ : TCExp (A ⇒ B)} {e₂ e₂' : TCExp A} → 
                   e₂ ~> e₂' → (e₁ $ e₂) ~> (e₁ $ e₂')
     step-beta  : ∀{A B} {e : TExp (A :: []) B} {e' : TCExp A} →
-                  ((Λ e) $ e') ~> (subst [] e' e)
+                  ((Λ e) $ e') ~> (subst e' e)
 
 
   -- Define a datatype representing that a term satisfies progress
@@ -198,17 +177,18 @@ module GÖDEL-T where
 
 
   -- extend HT to substitutions
-  HTΓ : (Γ : Ctx) → TSubst Γ → Set
+  HTΓ : (Γ : Ctx) → TSubst Γ [] → Set
   HTΓ Γ γ = ∀{A} (x : A ∈ Γ) -> HT A (lookup γ x)
 
-  emptyHTΓ : ∀{η : TSubst []} -> HTΓ [] η
+  emptyHTΓ : ∀{η : TSubst [] []} -> HTΓ [] η
   emptyHTΓ ()
 
 
-  extendHTΓ : ∀{Γ A} {e : TCExp A} {γ : TSubst Γ} ->
+  extendHTΓ : ∀{Γ A} {e : TCExp A} {γ : TSubst Γ []} ->
               HTΓ Γ γ -> HT A e -> HTΓ (A :: Γ) (e :: γ)
   extendHTΓ η HT Z = HT
   extendHTΓ η HT (S n) = η n
+
 
   head-expansion : ∀{A} {e e' : TCExp A} -> (e ~>* e') -> HT A e' -> HT A e
   head-expansion {nat} eval (halts eval' val) = halts (eval-trans eval eval') val
@@ -218,23 +198,23 @@ module GÖDEL-T where
 
 
   mutual
-    lam-case : ∀ {A B Γ} {γ : TSubst Γ} → (e : TExp (A :: Γ) B) → HTΓ Γ γ →
-                 (e' : TCExp A) → HT A e' → HT B (Λ (ssubst (A :: []) γ e) $ e')
+    lam-case : ∀ {A B Γ} {γ : TSubst Γ []} → (e : TExp (A :: Γ) B) → HTΓ Γ γ →
+                 (e' : TCExp A) → HT A e' → HT B (Λ (ssubst  (self-extendγ γ) e) $ e')
     lam-case {A} {B} {Γ} {γ} e η e' ht' with all-HT {γ = e' :: γ} e (extendHTΓ η ht')
     ... | ht with eval-step step-beta
     ... | steps-full with combine-subst-noob γ e _
     ... | eq = head-expansion
-               (ID.coe1 (λ x → (Λ (ssubst (A :: []) γ e) $ e') ~>* x) eq steps-full) ht
+               (ID.coe1 (λ x → (Λ (ssubst (self-extendγ γ) e) $ e') ~>* x) eq steps-full) ht
 
     -- the main theorem
-    all-HT : ∀{Γ A} {γ : TSubst Γ} → (e : TExp Γ A) → HTΓ Γ γ
-              → HT A (ssubst [] γ e)
+    all-HT : ∀{Γ A} {γ : TSubst Γ []} → (e : TExp Γ A) → HTΓ Γ γ
+              → HT A (ssubst γ e)
     all-HT (var x) η = η x
     all-HT (Λ e) η = 
       (halts eval-refl val-lam) , 
        lam-case e η
     all-HT (e₁ $ e₂) η with all-HT e₁ η
-    ... | _ , HT₁ = HT₁ (ssubst [] _ e₂) (all-HT e₂ η)
+    ... | _ , HT₁ = HT₁ (ssubst _ e₂) (all-HT e₂ η)
     all-HT zero η = halts eval-refl val-zero
 
 {-
