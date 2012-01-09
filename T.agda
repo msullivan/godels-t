@@ -35,7 +35,13 @@ module GÖDEL-T where
   -- substitutions
   data TSubst : Ctx → Ctx → Set where
     [] : ∀{Γ} → TSubst [] Γ
-    _::_ : ∀{Γ Γ' A} → TExp Γ' A → TSubst Γ Γ' → TSubst (A :: Γ) Γ'
+    _::_ : ∀{Γ Γ' A} → (e : TExp Γ' A) → (γ : TSubst Γ Γ') → TSubst (A :: Γ) Γ'
+
+  infixr 5 _+++_
+  _+++_ : ∀{Γ Γ' D} → TSubst Γ D → TSubst Γ' D → TSubst (Γ ++ Γ') D
+  [] +++ γ' = γ'
+  (e :: γ) +++ γ' = e :: (γ +++ γ')
+
 
   emptyγ : ∀{Γ} → TSubst [] Γ
   emptyγ = []
@@ -56,6 +62,11 @@ module GÖDEL-T where
   self-extendγ : ∀{Γ Γ' A} → TSubst Γ Γ' → TSubst (A :: Γ) (A :: Γ')
   self-extendγ γ = (var Z) :: (weakenγ LIST.SET.sub-cons γ)
 
+  self-extend-nγ : ∀{Γ Γ'} → (Γ'' : Ctx) → TSubst Γ Γ' → TSubst (Γ'' ++ Γ) (Γ'' ++ Γ')
+  self-extend-nγ [] γ = γ
+  self-extend-nγ (A :: Γ'') γ = self-extendγ (self-extend-nγ Γ'' γ)
+
+
   ssubst : ∀{Γ Γ' C} →
            (γ : TSubst Γ Γ') →
            (e : TExp Γ C) →
@@ -64,6 +75,11 @@ module GÖDEL-T where
   ssubst γ (Λ e) = Λ (ssubst (self-extendγ γ) e)
   ssubst γ (e₁ $ e₂) = (ssubst γ e₁) $ (ssubst γ e₂)
   ssubst γ zero = zero
+
+  compγ : ∀{Γ Γ' Γ''} → TSubst Γ Γ' → TSubst Γ'' Γ → TSubst Γ'' Γ'
+  compγ γ [] = []
+  compγ γ (e :: γ') = ssubst γ e :: (compγ γ γ')
+
 
   -- substituting one closed thing
   subst : ∀{A C} →
@@ -84,13 +100,36 @@ module GÖDEL-T where
   combine-subst = {!!}
 -}
 
+  combine-subst : ∀ {Γ Γ' Γ'' C} → (γ : TSubst Γ Γ') →
+                    (γ' : TSubst Γ'' Γ) →
+                    (e : TExp Γ'' C) →
+                    ssubst γ (ssubst γ' e) ≡
+                    ssubst (compγ γ γ') e
+  combine-subst γ γ' (var x) = {!!}
+  combine-subst γ γ' (Λ e) with resp Λ (combine-subst (self-extendγ γ) (self-extendγ γ') e)
+  ... | ass = {!!}
+  combine-subst γ γ' (e₁ $ e₂) = resp2 _$_ (combine-subst γ γ' e₁) (combine-subst γ γ' e₂)
+  combine-subst γ γ' zero = Refl
+
+  another-bs-lemma : ∀ {A C Γ} →
+                    (e' : TExp Γ A) →
+                    (e : TExp Γ C) →
+                    e ≡ ssubst (e' :: self-extend-nγ {!Γ!} []) (weaken (λ {x} → S) {!!})
+  another-bs-lemma e' e = {!!}
+
+  some-bs-lemma : ∀ {Γ A} → (γ : TSubst Γ []) →
+                  (e' : TCExp A) →
+                  γ ≡ (compγ (e' :: []) (weakenγ (λ {x} → S) γ))
+  some-bs-lemma [] e' = Refl
+  some-bs-lemma (e :: γ) e' = resp2 _::_ {!!} (some-bs-lemma γ e')
 
   combine-subst-noob : ∀ {Γ A C} → (γ : TSubst Γ []) →
                     (e : TExp (A :: Γ) C) →
                     (e' : TCExp A) →
                     ssubst (extendγ e' emptyγ) (ssubst (self-extendγ γ) e) ≡
                     ssubst (extendγ e' γ) e
-  combine-subst-noob = {!!}
+  combine-subst-noob γ e e' with combine-subst (e' :: []) (self-extendγ γ) e
+  ... | ass = {!!}
 
   -- dynamic semantics
   data TVal : ∀{A} → TCExp A → Set where
