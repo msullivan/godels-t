@@ -37,6 +37,12 @@ module GÖDEL-T where
     [] : ∀{Γ} → TSubst [] Γ
     _::_ : ∀{Γ Γ' A} → TExp Γ' A → TSubst Γ Γ' → TSubst (A :: Γ) Γ'
 
+  emptyγ : ∀{Γ} → TSubst [] Γ
+  emptyγ = []
+
+  extendγ : ∀{Γ Γ' A} → (e : TExp Γ' A) → (γ : TSubst Γ Γ') → TSubst (A :: Γ) Γ'
+  extendγ = _::_
+
   weakenγ : ∀{Γ Γ' Γ''} → (Γ' ⊆ Γ'') → TSubst Γ Γ' → TSubst Γ Γ''
   weakenγ s [] = []
   weakenγ s (e :: γ) = weaken s e :: weakenγ s γ
@@ -82,8 +88,8 @@ module GÖDEL-T where
   combine-subst-noob : ∀ {Γ A C} → (γ : TSubst Γ []) →
                     (e : TExp (A :: Γ) C) →
                     (e' : TCExp A) →
-                    ssubst (e' :: []) (ssubst (self-extendγ γ) e) ≡
-                    ssubst (e' :: γ) e
+                    ssubst (extendγ e' emptyγ) (ssubst (self-extendγ γ) e) ≡
+                    ssubst (extendγ e' γ) e
   combine-subst-noob = {!!}
 
   -- dynamic semantics
@@ -183,9 +189,8 @@ module GÖDEL-T where
   emptyHTΓ : ∀{η : TSubst [] []} -> HTΓ [] η
   emptyHTΓ ()
 
-
   extendHTΓ : ∀{Γ A} {e : TCExp A} {γ : TSubst Γ []} ->
-              HTΓ Γ γ -> HT A e -> HTΓ (A :: Γ) (e :: γ)
+              HTΓ Γ γ -> HT A e -> HTΓ (A :: Γ) (extendγ e γ)
   extendHTΓ η HT Z = HT
   extendHTΓ η HT (S n) = η n
 
@@ -199,8 +204,8 @@ module GÖDEL-T where
 
   mutual
     lam-case : ∀ {A B Γ} {γ : TSubst Γ []} → (e : TExp (A :: Γ) B) → HTΓ Γ γ →
-                 (e' : TCExp A) → HT A e' → HT B (Λ (ssubst  (self-extendγ γ) e) $ e')
-    lam-case {A} {B} {Γ} {γ} e η e' ht' with all-HT {γ = e' :: γ} e (extendHTΓ η ht')
+                 (e' : TCExp A) → HT A e' → HT B (Λ (ssubst (self-extendγ γ) e) $ e')
+    lam-case {A} {B} {Γ} {γ} e η e' ht' with all-HT {γ = extendγ e' γ} e (extendHTΓ η ht')
     ... | ht with eval-step step-beta
     ... | steps-full with combine-subst-noob γ e _
     ... | eq = head-expansion
