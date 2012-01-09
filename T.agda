@@ -23,6 +23,9 @@ module GÖDEL-T where
     Λ : ∀{A B} (e : TExp (A :: Γ) B) → TExp Γ (A ⇒ B)
     _$_ : ∀{A B} (e₁ : TExp Γ (A ⇒ B)) (e₂ : TExp Γ A) → TExp Γ B
     zero : TExp Γ nat
+    suc : (e : TExp Γ nat) → TExp Γ nat
+    rec : ∀{A} → (e : TExp Γ nat) → (e₀ : TExp Γ A) → (es : TExp (A :: Γ) A) →
+               TExp Γ A
 
   TCExp = TExp []
 
@@ -31,6 +34,9 @@ module GÖDEL-T where
   weaken s (Λ e) = Λ (weaken (LIST.SET.sub-cons-congr s) e)
   weaken s (e₁ $ e₂) = weaken s e₁ $ weaken s e₂
   weaken s zero = zero
+  weaken s (suc e) = suc (weaken s e)
+  weaken s (rec e e₀ es) = rec (weaken s e) (weaken s e₀)
+                           (weaken (LIST.SET.sub-cons-congr s) es)
 
   -- substitutions
   data TSubst : Ctx → Ctx → Set where
@@ -75,6 +81,8 @@ module GÖDEL-T where
   ssubst γ (Λ e) = Λ (ssubst (self-extendγ γ) e)
   ssubst γ (e₁ $ e₂) = (ssubst γ e₁) $ (ssubst γ e₂)
   ssubst γ zero = zero
+  ssubst γ (suc e) = suc (ssubst γ e)
+  ssubst γ (rec e e₀ es) = rec (ssubst γ e) (ssubst γ e₀) (ssubst (self-extendγ γ) es)
 
   compγ : ∀{Γ Γ' Γ''} → TSubst Γ Γ' → TSubst Γ'' Γ → TSubst Γ'' Γ'
   compγ γ [] = []
@@ -146,6 +154,7 @@ module GÖDEL-T where
   -- dynamic semantics
   data TVal : ∀{A} → TCExp A → Set where
     val-zero : TVal zero
+    val-suc : ∀{e} → TVal e → TVal (suc e)
     val-lam : ∀{A B} {e : TExp (A :: []) B} → TVal (Λ e)
 
   -- only worry about closed steps; embed preservation in the statement
@@ -157,12 +166,20 @@ module GÖDEL-T where
                   e₂ ~> e₂' → (e₁ $ e₂) ~> (e₁ $ e₂')
     step-beta  : ∀{A B} {e : TExp (A :: []) B} {e' : TCExp A} →
                   ((Λ e) $ e') ~> (subst e' e)
+    step-suc   : ∀{e e' : TCExp nat} → 
+                  e ~> e' → (suc e) ~> (suc e')
+    step-rec   : ∀{A} {e e' : TCExp nat} {e₀ : TCExp A} {es : TExp (A :: []) A} → 
+                  e ~> e' → (rec e e₀ es) ~> (rec e' e₀ es)
+    step-rec-z : ∀{A} {e₀ : TCExp A} {es : TExp (A :: []) A} → 
+                  (rec zero e₀ es) ~> e₀
+    step-rec-s : ∀{A} {e : TCExp nat} {e₀ : TCExp A} {es : TExp (A :: []) A} → 
+                  (rec (suc e) e₀ es) ~> subst (rec e e₀ es) es
 
 
   -- Define a datatype representing that a term satisfies progress
   data TProgress : ∀{A} → TCExp A → Set where
-    prog-val : ∀{A} {e : TCExp A} → TVal e → TProgress e
-    prog-step : ∀{A} {e e' : TCExp A} → e ~> e' → TProgress e
+    prog-val : ∀{A} {e : TCExp A} → (D : TVal e) → TProgress e
+    prog-step : ∀{A} {e e' : TCExp A} → (D : e ~> e') → TProgress e
 
   -- prove that all terms satisfy progress
   progress : ∀{A} (e : TCExp A) → TProgress e
@@ -174,7 +191,13 @@ module GÖDEL-T where
   ... | prog-val D = prog-step step-beta
   ... | prog-step D' = prog-step (step-app-r D')
   progress zero = prog-val val-zero
-
+  progress (suc e) with progress e
+  ... | prog-val D = prog-val (val-suc D)
+  ... | prog-step D' = prog-step (step-suc D')
+  progress (rec e e₀ es) with progress e
+  progress (rec .zero e₀ es) | prog-val val-zero = prog-step step-rec-z
+  progress (rec .(suc e) e₀ es) | prog-val (val-suc {e} y) = prog-step step-rec-s
+  ... | prog-step D = prog-step (step-rec D)
 
 
   -- define iterated stepping...
@@ -204,6 +227,11 @@ module GÖDEL-T where
                 e₂ ~>* e₂' → (e₁ $ e₂) ~>* (e₁ $ e₂')
   eval-app-r _ eval-refl = eval-refl
   eval-app-r _ (eval-cons S1 D) = eval-cons (step-app-r S1) (eval-app-r _ D)
+
+  eval-rec   : ∀{A} {e e' : TCExp nat} {e₀ : TCExp A} {es : TExp (A :: []) A} → 
+                e ~>* e' → (rec e e₀ es) ~>* (rec e' e₀ es)
+  eval-rec eval-refl = eval-refl
+  eval-rec (eval-cons S1 D) = eval-cons (step-rec S1) (eval-rec D)
 
 
   -- Should I use a record, or the product thing, or something else?
@@ -272,6 +300,8 @@ module GÖDEL-T where
     all-HT (e₁ $ e₂) η with all-HT e₁ η
     ... | _ , HT₁ = HT₁ (ssubst _ e₂) (all-HT e₂ η)
     all-HT zero η = halts eval-refl val-zero
+    all-HT (suc e) η = {!!}
+    all-HT (rec e e₀ es) η = {!!}
 
 {-
   all-halt : ∀{A} → (e : TCExp A) → THalts e
