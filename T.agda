@@ -100,6 +100,8 @@ module GÖDEL-T where
   combine-subst = {!!}
 -}
 
+{-
+
   combine-subst : ∀ {Γ Γ' Γ'' C} → (γ : TSubst Γ Γ') →
                     (γ' : TSubst Γ'' Γ) →
                     (e : TExp Γ'' C) →
@@ -130,6 +132,16 @@ module GÖDEL-T where
                     ssubst (extendγ e' γ) e
   combine-subst-noob γ e e' with combine-subst (e' :: []) (self-extendγ γ) e
   ... | ass = {!!}
+
+-}
+
+  postulate
+    combine-subst-noob : ∀ {Γ A C} → (γ : TSubst Γ []) →
+                       (e : TExp (A :: Γ) C) →
+                       (e' : TCExp A) →
+                       ssubst (extendγ e' emptyγ) (ssubst (self-extendγ γ) e) ≡
+                       ssubst (extendγ e' γ) e
+
 
   -- dynamic semantics
   data TVal : ∀{A} → TCExp A → Set where
