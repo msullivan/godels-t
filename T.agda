@@ -28,6 +28,7 @@ module GÖDEL-T where
                TExp Γ A
 
   TCExp = TExp []
+  TNat = TCExp nat
 
   weaken : ∀{Γ Γ' B} → (Γ ⊆ Γ') → TExp Γ B → TExp Γ' B
   weaken s (var x) = var (s x)
@@ -249,20 +250,33 @@ module GÖDEL-T where
   lhs-halt (halts (eval-cons (step-beta V1) E) V2) = halts eval-refl val-lam
 -}
 
+  Predω = TNat -> Set
+  HTPredω = Σ[ P :: Predω ] (∀{e} → e ~>* zero → P e) ×
+                            (∀{e e'} → e ~>* (suc e') → P e' → P e)
+  HTω : TNat -> Set1
+  HTω e = (P : HTPredω) → fst P e
+
   -- definition of hereditary termination
-  HT : (A : TTp) → TCExp A → Set
-  HT nat e = THalts e -- this is actually for unit, of course
+  HT : (A : TTp) → TCExp A → Set1
+  HT nat e = HTω e --THalts e -- this is actually for unit, of course
   -- I'm a bit dubious about the "THalts e"
   HT (A ⇒ B) e = THalts e × ((e' : TCExp A) → HT A e' → HT B (e $ e'))
 
   -- proof that hereditary termination implies termination
   HT-halts : ∀{A} → (e : TCExp A) → HT A e → THalts e
-  HT-halts {nat} _ h = h
+  HT-halts {nat} _ h = {!!}
   HT-halts {A ⇒ B} _ (h , _) = h
 
+  HTω' : TNat -> Set1
+  HTω' e = (e ~>* zero) + (Σ[ e' :: TNat ] (e ~>* suc e' × HTω e'))
+  
+  HTω'-imp-HTω : {e : TNat} → HTω' e → HTω e
+  HTω'-imp-HTω (Inl E) (_ , zP , _) = zP E
+  HTω'-imp-HTω (Inr (e' , E , H)) (P , zP , sP) =
+                sP E (H (P , zP , sP))
 
   -- extend HT to substitutions
-  HTΓ : (Γ : Ctx) → TSubst Γ [] → Set
+  HTΓ : (Γ : Ctx) → TSubst Γ [] → Set1
   HTΓ Γ γ = ∀{A} (x : A ∈ Γ) -> HT A (lookup γ x)
 
   emptyHTΓ : ∀{η : TSubst [] []} -> HTΓ [] η
@@ -275,7 +289,8 @@ module GÖDEL-T where
 
 
   head-expansion : ∀{A} {e e' : TCExp A} -> (e ~>* e') -> HT A e' -> HT A e
-  head-expansion {nat} eval (halts eval' val) = halts (eval-trans eval eval') val
+--  head-expansion {nat} eval (halts eval' val) = halts (eval-trans eval eval') val
+  head-expansion {nat} eval _ = {!!}
   head-expansion {A ⇒ B} eval (halts eval' val , ht-logic) =
      halts (eval-trans eval eval') val ,
      (λ e' ht → head-expansion (eval-app-l eval) (ht-logic e' ht))
@@ -299,7 +314,7 @@ module GÖDEL-T where
        lam-case e η
     all-HT (e₁ $ e₂) η with all-HT e₁ η
     ... | _ , HT₁ = HT₁ (ssubst _ e₂) (all-HT e₂ η)
-    all-HT zero η = halts eval-refl val-zero
+    all-HT zero η = {!!} --halts eval-refl val-zero
     all-HT (suc e) η = {!!}
     all-HT (rec e e₀ es) η = {!!}
 
