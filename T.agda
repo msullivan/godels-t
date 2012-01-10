@@ -5,13 +5,10 @@ open import Prelude
 _⊆_ : ∀{A} → List A → List A → Set
 xs ⊆ ys = LIST.SET.Sub xs ys
 
-concats : ∀{A : Set} → List (List A) → List A
-concats [] = []
-concats (xs :: xss) = xs ++ concats xss
-
 -- Gödel's T
 module GÖDEL-T where
 
+  -- Core syntax
   data TTp : Set where
     nat : TTp
     _⇒_ : (A B : TTp) → TTp
@@ -30,6 +27,7 @@ module GÖDEL-T where
   TCExp = TExp []
   TNat = TCExp nat
 
+  -- definition and theory related to substitution
   weaken : ∀{Γ Γ' B} → (Γ ⊆ Γ') → TExp Γ B → TExp Γ' B
   weaken s (var x) = var (s x)
   weaken s (Λ e) = Λ (weaken (LIST.SET.sub-cons-congr s) e)
@@ -39,7 +37,6 @@ module GÖDEL-T where
   weaken s (rec e e₀ es) = rec (weaken s e) (weaken s e₀)
                            (weaken (LIST.SET.sub-cons-congr s) es)
 
-  -- substitutions
   data TSubst : Ctx → Ctx → Set where
     [] : ∀{Γ} → TSubst [] Γ
     _::_ : ∀{Γ Γ' A} → (e : TExp Γ' A) → (γ : TSubst Γ Γ') → TSubst (A :: Γ) Γ'
@@ -61,7 +58,7 @@ module GÖDEL-T where
   weakenγ s (e :: γ) = weaken s e :: weakenγ s γ
 
 
-  lookup : ∀{A Γ Γ'} -> TSubst Γ Γ' -> (x : A ∈ Γ) -> TExp Γ' A
+  lookup : ∀{A Γ Γ'} → TSubst Γ Γ' → (x : A ∈ Γ) → TExp Γ' A
   lookup [] ()
   lookup (e :: _) Z = e
   lookup (_ :: es) (S n) = lookup es n
@@ -278,18 +275,18 @@ module GÖDEL-T where
 
   -- extend HT to substitutions
   HTΓ : (Γ : Ctx) → TSubst Γ [] → Set
-  HTΓ Γ γ = ∀{A} (x : A ∈ Γ) -> HT A (lookup γ x)
+  HTΓ Γ γ = ∀{A} (x : A ∈ Γ) → HT A (lookup γ x)
 
-  emptyHTΓ : ∀{η : TSubst [] []} -> HTΓ [] η
+  emptyHTΓ : ∀{η : TSubst [] []} → HTΓ [] η
   emptyHTΓ ()
 
-  extendHTΓ : ∀{Γ A} {e : TCExp A} {γ : TSubst Γ []} ->
-              HTΓ Γ γ -> HT A e -> HTΓ (A :: Γ) (extendγ e γ)
+  extendHTΓ : ∀{Γ A} {e : TCExp A} {γ : TSubst Γ []} →
+              HTΓ Γ γ → HT A e → HTΓ (A :: Γ) (extendγ e γ)
   extendHTΓ η HT Z = HT
   extendHTΓ η HT (S n) = η n
 
-
-  head-expansion : ∀{A} {e e' : TCExp A} -> (e ~>* e') -> HT A e' -> HT A e
+  -- head expansion lemma
+  head-expansion : ∀{A} {e e' : TCExp A} → (e ~>* e') → HT A e' → HT A e
   head-expansion {nat} eval (HT-z E) = HT-z (eval-trans eval E)
   head-expansion {nat} eval (HT-s E HT) = HT-s (eval-trans eval E) HT
   head-expansion {A ⇒ B} eval (halts eval' val , ht-logic) =
@@ -301,6 +298,11 @@ module GÖDEL-T where
   all-HT : ∀{Γ A} {γ : TSubst Γ []} → (e : TExp Γ A) → HTΓ Γ γ
             → HT A (ssubst γ e)
   all-HT (var x) η = η x
+  all-HT (e₁ $ e₂) η with all-HT e₁ η
+  ... | _ , HT₁ = HT₁ (ssubst _ e₂) (all-HT e₂ η)
+  all-HT zero η = HT-z eval-refl
+  all-HT (suc e) η = HT-s eval-refl (all-HT e η)
+
   all-HT {Γ} {A ⇒ B} {γ} (Λ e) η = 
     (halts eval-refl val-lam) , 
      lam-case
@@ -311,10 +313,6 @@ module GÖDEL-T where
           ... | eq = head-expansion
                     (ID.coe1 (λ x → (Λ (ssubst (self-extendγ γ) e) $ e') ~>* x) eq steps-full) ht
 
-  all-HT (e₁ $ e₂) η with all-HT e₁ η
-  ... | _ , HT₁ = HT₁ (ssubst _ e₂) (all-HT e₂ η)
-  all-HT zero η = HT-z eval-refl
-  all-HT (suc e) η = HT-s eval-refl (all-HT e η)
   all-HT {Γ} {A} {γ} (rec e e₀ es) η = inner (all-HT e η)
     where inner : {e : TNat} → HTω e → HT A (rec e (ssubst γ e₀) (ssubst (self-extendγ γ) es))
           inner (HT-z E) with eval-trans (eval-rec {es = (ssubst (self-extendγ γ) es)} E)
