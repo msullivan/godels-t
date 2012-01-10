@@ -9,6 +9,8 @@ xs ⊆ ys = LIST.SET.Sub xs ys
 module GÖDEL-T where
 
   -- Core syntax
+  infixr 5 _⇒_
+  infixl 5 _$_
   data TTp : Set where
     nat : TTp
     _⇒_ : (A B : TTp) → TTp
@@ -27,7 +29,35 @@ module GÖDEL-T where
   TCExp = TExp []
   TNat = TCExp nat
 
-  -- definition and theory related to substitution
+  ---- denotational semantics
+  interp : TTp → Set
+  interp nat = Nat
+  interp (A ⇒ B) = interp A → interp B
+
+  meaningη : (Γ : Ctx) → Set
+  meaningη Γ = ∀{A} (x : A ∈ Γ) → interp A
+
+  emptyη : meaningη []
+  emptyη ()
+
+  extendη : ∀{Γ A} → meaningη Γ → interp A → meaningη (A :: Γ)
+  extendη η M Z = M
+  extendη η M (S n) = η n
+
+  meaning : ∀{A Γ} → TExp Γ A → meaningη Γ → interp A
+  meaning (var x) η = η x
+  meaning (Λ e) η = λ x → meaning e (extendη η x)
+  meaning (e₁ $ e₂) η = meaning e₁ η (meaning e₂ η)
+  meaning zero η = Z
+  meaning (suc e) η = S (meaning e η)
+  meaning (rec e e₀ es) η = NAT.fold (meaning e₀ η)
+                                     (λ n x → meaning es (extendη η x))
+                                     (meaning e η)
+
+  cmeaning : ∀{A} → TCExp A → interp A
+  cmeaning e = meaning e emptyη
+
+  ---- definition and theory related to substitution
   weaken : ∀{Γ Γ' B} → (Γ ⊆ Γ') → TExp Γ B → TExp Γ' B
   weaken s (var x) = var (s x)
   weaken s (Λ e) = Λ (weaken (LIST.SET.sub-cons-congr s) e)
@@ -99,8 +129,8 @@ module GÖDEL-T where
   combine-subst : ∀ {A Γ C} {γ : TSubst Γ} →
                     (Γ' : Ctx) →
                     (e : TExp (Γ' ++ A :: Γ) C) →
-                    (e' : TCExp A) → 
-                    ssubst Γ' (e' :: []) 
+                    (e' : TCExp A) →
+                    ssubst Γ' (e' :: [])
                       (ssubst (Γ' ++ A :: []) γ (ID.coe1 (λ x → TExp x C) {!!} e)) ≡
                       ssubst Γ' (e' :: γ) e
   combine-subst = {!!}
@@ -149,7 +179,7 @@ module GÖDEL-T where
                        ssubst (extendγ e' γ) e
 
 
-  -- dynamic semantics
+  ---- dynamic semantics (and, implicitly, preservation)
   data TVal : ∀{A} → TCExp A → Set where
     val-zero : TVal zero
     val-suc : ∀{e} → TVal e → TVal (suc e)
@@ -158,22 +188,23 @@ module GÖDEL-T where
   -- only worry about closed steps; embed preservation in the statement
   -- the evaluation semantics are non-deterministic; we could get rid of step-app-r
   data _~>_ : ∀{A} → TCExp A → TCExp A → Set where
-    step-app-l : ∀{A B} {e₁ e₁' : TCExp (A ⇒ B)} {e₂ : TCExp A} → 
+    step-app-l : ∀{A B} {e₁ e₁' : TCExp (A ⇒ B)} {e₂ : TCExp A} →
                   e₁ ~> e₁' → (e₁ $ e₂) ~> (e₁' $ e₂)
-    step-app-r : ∀{A B} {e₁ : TCExp (A ⇒ B)} {e₂ e₂' : TCExp A} → 
+    step-app-r : ∀{A B} {e₁ : TCExp (A ⇒ B)} {e₂ e₂' : TCExp A} →
                   e₂ ~> e₂' → (e₁ $ e₂) ~> (e₁ $ e₂')
     step-beta  : ∀{A B} {e : TExp (A :: []) B} {e' : TCExp A} →
                   ((Λ e) $ e') ~> (subst e' e)
-    step-suc   : ∀{e e' : TCExp nat} → 
+    step-suc   : ∀{e e' : TCExp nat} →
                   e ~> e' → (suc e) ~> (suc e')
-    step-rec   : ∀{A} {e e' : TCExp nat} {e₀ : TCExp A} {es : TExp (A :: []) A} → 
+    step-rec   : ∀{A} {e e' : TCExp nat} {e₀ : TCExp A} {es : TExp (A :: []) A} →
                   e ~> e' → (rec e e₀ es) ~> (rec e' e₀ es)
-    step-rec-z : ∀{A} {e₀ : TCExp A} {es : TExp (A :: []) A} → 
+    step-rec-z : ∀{A} {e₀ : TCExp A} {es : TExp (A :: []) A} →
                   (rec zero e₀ es) ~> e₀
-    step-rec-s : ∀{A} {e : TCExp nat} {e₀ : TCExp A} {es : TExp (A :: []) A} → 
+    step-rec-s : ∀{A} {e : TCExp nat} {e₀ : TCExp A} {es : TExp (A :: []) A} →
                   (rec (suc e) e₀ es) ~> subst (rec e e₀ es) es
 
 
+  ---- progress
   -- Define a datatype representing that a term satisfies progress
   data TProgress : ∀{A} → TCExp A → Set where
     prog-val : ∀{A} {e : TCExp A} → (D : TVal e) → TProgress e
@@ -198,7 +229,7 @@ module GÖDEL-T where
   ... | prog-step D = prog-step (step-rec D)
 
 
-  -- define iterated stepping...
+  ---- iterated stepping, and theorems about it
   data _~>*_ : ∀{A} → TCExp A → TCExp A → Set where
     eval-refl : ∀{A} {e : TCExp A} → e ~>* e
     eval-cons : ∀{A} {e e' e'' : TCExp A} →
@@ -216,7 +247,7 @@ module GÖDEL-T where
 
   -- stupid compatibility rules that lift the step compat rules to
   -- the eval level
-  eval-app-l : ∀{A B} {e₁ e₁' : TCExp (A ⇒ B)} {e₂ : TCExp A} → 
+  eval-app-l : ∀{A B} {e₁ e₁' : TCExp (A ⇒ B)} {e₂ : TCExp A} →
                 e₁ ~>* e₁' → (e₁ $ e₂) ~>* (e₁' $ e₂)
   eval-app-l eval-refl = eval-refl
   eval-app-l (eval-cons S1 D) = eval-cons (step-app-l S1) (eval-app-l D)
@@ -226,25 +257,25 @@ module GÖDEL-T where
   eval-app-r _ eval-refl = eval-refl
   eval-app-r _ (eval-cons S1 D) = eval-cons (step-app-r S1) (eval-app-r _ D)
 
-  eval-rec   : ∀{A} {e e' : TCExp nat} {e₀ : TCExp A} {es : TExp (A :: []) A} → 
+  eval-rec   : ∀{A} {e e' : TCExp nat} {e₀ : TCExp A} {es : TExp (A :: []) A} →
                 e ~>* e' → (rec e e₀ es) ~>* (rec e' e₀ es)
   eval-rec eval-refl = eval-refl
   eval-rec (eval-cons S1 D) = eval-cons (step-rec S1) (eval-rec D)
 
-  eval-suc   : {e e' : TCExp nat} → 
+  eval-suc   : {e e' : TCExp nat} →
                 e ~>* e' → suc e ~>* suc e'
   eval-suc eval-refl = eval-refl
   eval-suc (eval-cons S1 D) = eval-cons (step-suc S1) (eval-suc D)
 
 
-
+  ---- Halting and Hereditary Termination
   -- Should I use a record, or the product thing, or something else?
   data THalts : ∀{A} → TCExp A → Set where
     halts : {A : TTp} {e e' : TCExp A} → (eval : (e ~>* e')) → (val : TVal e') → THalts e
 
   -- extract that the lhs must halt if its application to something halts
 {-
-  lhs-halt : {A B : TTp} {e : TCExp (A ⇒ B)} {e' : TCExp A} → 
+  lhs-halt : {A B : TTp} {e : TCExp (A ⇒ B)} {e' : TCExp A} →
               THalts (e $ e') → THalts e
   lhs-halt (halts eval-refl ())
   lhs-halt (halts (eval-cons (step-app-l S1) E) V) with lhs-halt (halts E V)
@@ -303,8 +334,8 @@ module GÖDEL-T where
   all-HT zero η = HT-z eval-refl
   all-HT (suc e) η = HT-s eval-refl (all-HT e η)
 
-  all-HT {Γ} {A ⇒ B} {γ} (Λ e) η = 
-    (halts eval-refl val-lam) , 
+  all-HT {Γ} {A ⇒ B} {γ} (Λ e) η =
+    (halts eval-refl val-lam) ,
      lam-case
     where lam-case : (e' : TCExp A) → HT A e' → HT B (Λ (ssubst (self-extendγ γ) e) $ e')
           lam-case e' ht' with all-HT {γ = extendγ e' γ} e (extendHTΓ η ht')
@@ -321,8 +352,8 @@ module GÖDEL-T where
           inner {e} (HT-s E ht') with all-HT {γ = extendγ _ γ} es (extendHTΓ η (inner ht'))
           ... | ht with eval-trans (eval-rec {e₀ = (ssubst γ e₀)} E) (eval-step step-rec-s)
           ... | steps-full with combine-subst-noob γ es _
-          ... | eq = head-expansion 
-                      (ID.coe1 (λ x → (rec e (ssubst γ e₀) (ssubst (self-extendγ γ) es)) ~>* x) 
+          ... | eq = head-expansion
+                      (ID.coe1 (λ x → (rec e (ssubst γ e₀) (ssubst (self-extendγ γ) es)) ~>* x)
                                eq steps-full)
                       ht
 
@@ -332,3 +363,28 @@ module GÖDEL-T where
   ... | ht with (empty-subst-nop e)
   ... | eq = {!eq!}
 -}
+
+  ---- some example programs
+  -- boy, de bruijn indexes are unreadable
+  wk : ∀{Γ B} → TCExp B → TExp Γ B
+  wk e = weaken (LIST.SET.sub-appendr [] _) e
+
+  one : TNat
+  one = suc zero
+  two = suc one
+  three = suc two
+  t-plus : TCExp (nat ⇒ nat ⇒ nat)
+  t-plus = Λ (Λ (rec (var (S Z)) (var Z) (suc (var Z))))
+  t-compose : ∀{A B C} → TCExp ((A ⇒ B) ⇒ (C ⇒ A) ⇒ (C ⇒ B))
+  t-compose = Λ (Λ (Λ (var (S (S Z)) $ ((var (S Z)) $ (var Z)))))
+  t-id : ∀{A} → TCExp (A ⇒ A)
+  t-id = Λ (var Z)
+  t-iterate : ∀{A} → TCExp (nat ⇒ (A ⇒ A) ⇒ (A ⇒ A))
+  t-iterate = Λ (Λ (rec (var (S Z)) (wk t-id)
+                     (wk t-compose $ var (S Z) $ var Z)))
+  t-ack : TCExp (nat ⇒ nat ⇒ nat)
+  t-ack = Λ (rec (var Z) (Λ (suc (var Z)))
+              (Λ (wk t-iterate $ var Z $ var (S Z) $ (var (S Z) $ wk one))))
+
+
+open GÖDEL-T public
