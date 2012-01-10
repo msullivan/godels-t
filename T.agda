@@ -234,6 +234,12 @@ module GÖDEL-T where
   eval-rec eval-refl = eval-refl
   eval-rec (eval-cons S1 D) = eval-cons (step-rec S1) (eval-rec D)
 
+  eval-suc   : {e e' : TCExp nat} → 
+                e ~>* e' → suc e ~>* suc e'
+  eval-suc eval-refl = eval-refl
+  eval-suc (eval-cons S1 D) = eval-cons (step-suc S1) (eval-suc D)
+
+
 
   -- Should I use a record, or the product thing, or something else?
   data THalts : ∀{A} → TCExp A → Set where
@@ -250,33 +256,28 @@ module GÖDEL-T where
   lhs-halt (halts (eval-cons (step-beta V1) E) V2) = halts eval-refl val-lam
 -}
 
-  Predω = TNat -> Set
-  HTPredω = Σ[ P :: Predω ] (∀{e} → e ~>* zero → P e) ×
-                            (∀{e e'} → e ~>* (suc e') → P e' → P e)
-  HTω : TNat -> Set1
-  HTω e = (P : HTPredω) → fst P e
+  -- I think the induction principle for this datatype is the definition of
+  -- HTω from the homework.
+  data HTω : TNat → Set where
+    HT-z : {e : TNat} → (E : e ~>* zero) → HTω e
+    HT-s : {e e' : TNat} → (E : e ~>* suc e') → (HT : HTω e') → HTω e
 
   -- definition of hereditary termination
-  HT : (A : TTp) → TCExp A → Set1
-  HT nat e = HTω e --THalts e -- this is actually for unit, of course
+  HT : (A : TTp) → TCExp A → Set
+  HT nat e = HTω e
   -- I'm a bit dubious about the "THalts e"
   HT (A ⇒ B) e = THalts e × ((e' : TCExp A) → HT A e' → HT B (e $ e'))
 
   -- proof that hereditary termination implies termination
   HT-halts : ∀{A} → (e : TCExp A) → HT A e → THalts e
-  HT-halts {nat} _ h = {!!}
+  HT-halts {nat} e (HT-z E) = halts E val-zero
+  HT-halts {nat} e (HT-s {.e} {e'} E HT) with HT-halts e' HT
+  ... | halts eval val = halts (eval-trans E (eval-suc eval)) (val-suc val)
   HT-halts {A ⇒ B} _ (h , _) = h
 
-  HTω' : TNat -> Set1
-  HTω' e = (e ~>* zero) + (Σ[ e' :: TNat ] (e ~>* suc e' × HTω e'))
-  
-  HTω'-imp-HTω : {e : TNat} → HTω' e → HTω e
-  HTω'-imp-HTω (Inl E) (_ , zP , _) = zP E
-  HTω'-imp-HTω (Inr (e' , E , H)) (P , zP , sP) =
-                sP E (H (P , zP , sP))
 
   -- extend HT to substitutions
-  HTΓ : (Γ : Ctx) → TSubst Γ [] → Set1
+  HTΓ : (Γ : Ctx) → TSubst Γ [] → Set
   HTΓ Γ γ = ∀{A} (x : A ∈ Γ) -> HT A (lookup γ x)
 
   emptyHTΓ : ∀{η : TSubst [] []} -> HTΓ [] η
@@ -289,34 +290,43 @@ module GÖDEL-T where
 
 
   head-expansion : ∀{A} {e e' : TCExp A} -> (e ~>* e') -> HT A e' -> HT A e
---  head-expansion {nat} eval (halts eval' val) = halts (eval-trans eval eval') val
-  head-expansion {nat} eval _ = {!!}
+  head-expansion {nat} eval (HT-z E) = HT-z (eval-trans eval E)
+  head-expansion {nat} eval (HT-s E HT) = HT-s (eval-trans eval E) HT
   head-expansion {A ⇒ B} eval (halts eval' val , ht-logic) =
      halts (eval-trans eval eval') val ,
      (λ e' ht → head-expansion (eval-app-l eval) (ht-logic e' ht))
 
 
-  mutual
-    lam-case : ∀ {A B Γ} {γ : TSubst Γ []} → (e : TExp (A :: Γ) B) → HTΓ Γ γ →
-                 (e' : TCExp A) → HT A e' → HT B (Λ (ssubst (self-extendγ γ) e) $ e')
-    lam-case {A} {B} {Γ} {γ} e η e' ht' with all-HT {γ = extendγ e' γ} e (extendHTΓ η ht')
-    ... | ht with eval-step step-beta
-    ... | steps-full with combine-subst-noob γ e _
-    ... | eq = head-expansion
-               (ID.coe1 (λ x → (Λ (ssubst (self-extendγ γ) e) $ e') ~>* x) eq steps-full) ht
+  -- the main theorem
+  all-HT : ∀{Γ A} {γ : TSubst Γ []} → (e : TExp Γ A) → HTΓ Γ γ
+            → HT A (ssubst γ e)
+  all-HT (var x) η = η x
+  all-HT {Γ} {A ⇒ B} {γ} (Λ e) η = 
+    (halts eval-refl val-lam) , 
+     lam-case
+    where lam-case : (e' : TCExp A) → HT A e' → HT B (Λ (ssubst (self-extendγ γ) e) $ e')
+          lam-case e' ht' with all-HT {γ = extendγ e' γ} e (extendHTΓ η ht')
+          ... | ht with eval-step step-beta
+          ... | steps-full with combine-subst-noob γ e _
+          ... | eq = head-expansion
+                    (ID.coe1 (λ x → (Λ (ssubst (self-extendγ γ) e) $ e') ~>* x) eq steps-full) ht
 
-    -- the main theorem
-    all-HT : ∀{Γ A} {γ : TSubst Γ []} → (e : TExp Γ A) → HTΓ Γ γ
-              → HT A (ssubst γ e)
-    all-HT (var x) η = η x
-    all-HT (Λ e) η = 
-      (halts eval-refl val-lam) , 
-       lam-case e η
-    all-HT (e₁ $ e₂) η with all-HT e₁ η
-    ... | _ , HT₁ = HT₁ (ssubst _ e₂) (all-HT e₂ η)
-    all-HT zero η = {!!} --halts eval-refl val-zero
-    all-HT (suc e) η = {!!}
-    all-HT (rec e e₀ es) η = {!!}
+  all-HT (e₁ $ e₂) η with all-HT e₁ η
+  ... | _ , HT₁ = HT₁ (ssubst _ e₂) (all-HT e₂ η)
+  all-HT zero η = HT-z eval-refl
+  all-HT (suc e) η = HT-s eval-refl (all-HT e η)
+  all-HT {Γ} {A} {γ} (rec e e₀ es) η = inner (all-HT e η)
+    where inner : {e : TNat} → HTω e → HT A (rec e (ssubst γ e₀) (ssubst (self-extendγ γ) es))
+          inner (HT-z E) with eval-trans (eval-rec {es = (ssubst (self-extendγ γ) es)} E)
+                              (eval-step step-rec-z)
+          ... | steps-full = head-expansion steps-full (all-HT e₀ η)
+          inner {e} (HT-s E ht') with all-HT {γ = extendγ _ γ} es (extendHTΓ η (inner ht'))
+          ... | ht with eval-trans (eval-rec {e₀ = (ssubst γ e₀)} E) (eval-step step-rec-s)
+          ... | steps-full with combine-subst-noob γ es _
+          ... | eq = head-expansion 
+                      (ID.coe1 (λ x → (rec e (ssubst γ e₀) (ssubst (self-extendγ γ) es)) ~>* x) 
+                               eq steps-full)
+                      ht
 
 {-
   all-halt : ∀{A} → (e : TCExp A) → THalts e
