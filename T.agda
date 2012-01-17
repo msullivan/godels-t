@@ -493,3 +493,9 @@ module GÖDEL-T where
   t-ack : TCExp (nat ⇒ nat ⇒ nat)
   t-ack = Λ (rec (var Z) (Λ (suc (var Z)))
               (Λ (w t-iterate $ var Z $ var (S Z) $ (var (S Z) $ w one))))
+  ack-test : TNat
+  ack-test = t-ack $ two $ two
+  plus-test : TNat
+  plus-test = t-plus $ two $ two
+
+open GÖDEL-T public
