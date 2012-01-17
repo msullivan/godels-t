@@ -1,3 +1,7 @@
+-- Proof of some theorems about Gödel's System T:
+--   progress, preservation, and termination.
+-- Michael Sullivan (mjsulliv@cs.cmu.edu)
+
 -- We use the strategy for representing substitutions and renamings presented in:
 --  http://thread.gmane.org/gmane.comp.lang.agda/3259
 -- It is kind of unpleasant. There are a lot of lemmas we need to prove,
@@ -5,6 +9,27 @@
 -- The first reply to the post linked above presents a refinement that
 -- avoids these problems, but at the cost of moving weakening into
 -- every substitution function, where we can't reason about it.
+-- The vast majority of my time spent on this proof was fighting with 
+-- substitutions so that I could prove combine-subst-noob.
+
+-- This uses an intrinsic representation, where the typing derivation
+-- is intrinsic to the syntax datatype. This means that the
+-- substitution lemma is built into the definition of substitution and
+-- preservation is built into the dynamic semantics.
+
+-- The dynamic semantics are non-deterministic and call-by-name. This
+-- made the HT proof easier.
+
+-- Some inspiration taken from 
+-- https://github.com/robsimmons/agda-lib/blob/pattern-0/GoedelT.agda
+
+-- This relies on Rob Simmons' alternate Agda standard library:
+-- https://github.com/robsimmons/agda-lib
+
+-- This is my first real development in agda, so that is my excuse
+-- for any brain damage. There are probably a bunch of ways to clean
+-- things up and reduce some code duplication.
+
 
 module T where
 
@@ -23,7 +48,6 @@ postulate ext : {A : Set}{B : A → Set}{f : ∀ a → B a}{g : ∀ a → B a} �
                 (∀ a → f a ≡ g a) → f ≡ g
 
 
--- Gödel's T
 module GÖDEL-T where
 
   -- Core syntax
@@ -75,8 +99,8 @@ module GÖDEL-T where
   cmeaning : ∀{A} → TCExp A → interp A
   cmeaning e = meaning e emptyη
 
-  ---- definition and theory related to substitution
-  ---- Generic stuff about substitutions and renamings
+  ---- Definition and theory related to substitution.
+  ---- (Lots of theory. *Lots*. Too much. Sigh.)
   -- Renamings
   TRen : Ctx → Ctx → Set
   TRen Γ Γ' = ∀ {A} → A ∈ Γ → A ∈ Γ'
@@ -252,7 +276,9 @@ module GÖDEL-T where
   subst : ∀{A C} → (e' : TCExp A) → (e : TExp (A :: []) C) → TCExp C
   subst e' e = ssubst (singγ e') e
 
-
+  -- The lemma about combining substitutions that we are actually
+  -- going to need. Being able to prove this lemma was the cause
+  -- of most of the grief during this proof.
   combine-subst-noob : ∀ {Γ A C} → (γ : TSubst Γ []) →
                     (e : TExp (A :: Γ) C) →
                     (e' : TCExp A) →
@@ -359,19 +385,19 @@ module GÖDEL-T where
   data THalts : ∀{A} → TCExp A → Set where
     halts : {A : TTp} {e e' : TCExp A} → (eval : (e ~>* e')) → (val : TVal e') → THalts e
 
-  -- extract that the lhs must halt if its application to something halts
-{-
+  -- Extract that the lhs must halt if its application to something halts.
+  -- I think this isn't actually useful, though, since to use it we would
+  -- need to be able to produce an argument to the function.
   lhs-halt : {A B : TTp} {e : TCExp (A ⇒ B)} {e' : TCExp A} →
               THalts (e $ e') → THalts e
   lhs-halt (halts eval-refl ())
-  lhs-halt (halts (eval-cons (step-app-l S1) E) V) with lhs-halt (halts E V)
-  ... | halts E' V' = halts (eval-cons S1 E') V'
-  lhs-halt (halts (eval-cons (step-app-r V1 S2) E) V2) = halts eval-refl V1
-  lhs-halt (halts (eval-cons (step-beta V1) E) V2) = halts eval-refl val-lam
--}
+  lhs-halt (halts (eval-cons (step-app-l S1) E) val) with lhs-halt (halts E val)
+  ... | halts E' val' = halts (eval-cons S1 E') val'
+  lhs-halt (halts (eval-cons (step-app-r S2) E) val) = lhs-halt (halts E val)
+  lhs-halt (halts (eval-cons step-beta E) val) = halts eval-refl val-lam
 
   -- I think the induction principle for this datatype is the definition of
-  -- HTω from the homework.
+  -- HTω from http://www.cs.cmu.edu/~rwh/courses/typesys/hw3/hw3-handout.pdf
   data HTω : TNat → Set where
     HT-z : {e : TNat} → (E : e ~>* zero) → HTω e
     HT-s : {e e' : TNat} → (E : e ~>* suc e') → (HT : HTω e') → HTω e
@@ -379,7 +405,7 @@ module GÖDEL-T where
   -- definition of hereditary termination
   HT : (A : TTp) → TCExp A → Set
   HT nat e = HTω e
-  -- I'm a bit dubious about the "THalts e"
+  -- It is kind of ugly to have to hang on to the halting proof.
   HT (A ⇒ B) e = THalts e × ((e' : TCExp A) → HT A e' → HT B (e $ e'))
 
   -- proof that hereditary termination implies termination
@@ -439,7 +465,7 @@ module GÖDEL-T where
           ... | steps-full with combine-subst-noob γ es _
           ... | eq = head-expansion steps-full (ID.coe1 (HT _) eq ht)
 
-
+  -- Prove that all programs in Gödel's System T halt.
   all-halt : ∀{A} → (e : TCExp A) → THalts e
   all-halt {A} e = HT-halts e (ID.coe1 (HT A) (subid e) (all-HT e (emptyHTΓ {emptyγ})))
 
@@ -467,6 +493,3 @@ module GÖDEL-T where
   t-ack : TCExp (nat ⇒ nat ⇒ nat)
   t-ack = Λ (rec (var Z) (Λ (suc (var Z)))
               (Λ (w t-iterate $ var Z $ var (S Z) $ (var (S Z) $ w one))))
-
-
-open GÖDEL-T public
