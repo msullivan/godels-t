@@ -439,12 +439,9 @@ module GÖDEL-T where
           ... | steps-full with combine-subst-noob γ es _
           ... | eq = head-expansion steps-full (ID.coe1 (HT _) eq ht)
 
-{-
+
   all-halt : ∀{A} → (e : TCExp A) → THalts e
-  all-halt e with all-HT e emptyHTΓ
-  ... | ht with (empty-subst-nop e)
-  ... | eq = {!eq!}
--}
+  all-halt {A} e = HT-halts e (ID.coe1 (HT A) (subid e) (all-HT e (emptyHTΓ {emptyγ})))
 
   ---- some example programs
   -- boy, de bruijn indexes are unreadable
