@@ -1,9 +1,27 @@
+-- We use the strategy for representing substitutions and renamings presented in:
+--  http://thread.gmane.org/gmane.comp.lang.agda/3259
+-- It is kind of unpleasant. There are a lot of lemmas we need to prove,
+-- and treating renaming and substitution completely seperately is ugly.
+-- The first reply to the post linked above presents a refinement that
+-- avoids these problems, but at the cost of moving weakening into
+-- every substitution function, where we can't reason about it.
+
 module T where
 
 open import Prelude
 
-_⊆_ : ∀{A} → List A → List A → Set
-xs ⊆ ys = LIST.SET.Sub xs ys
+-- We could avoid needing to do this, but it would be a pain in the
+-- ass.  We would have to do a lot of passing around of proofs that
+-- substitutions behave the same.  It's easier to just use postulated
+-- extensional equivalence to convert those proofs into full
+-- equality proofs.
+postulate iext : {A : Set}{B : A → Set}{f : ∀ {a} → B a}{g : ∀{a} → B a} →
+                 (∀ a → f {a} ≡ g {a}) →
+                 _≡_ { A = {a : A} → B a} f g
+
+postulate ext : {A : Set}{B : A → Set}{f : ∀ a → B a}{g : ∀ a → B a} →
+                (∀ a → f a ≡ g a) → f ≡ g
+
 
 -- Gödel's T
 module GÖDEL-T where
@@ -58,125 +76,193 @@ module GÖDEL-T where
   cmeaning e = meaning e emptyη
 
   ---- definition and theory related to substitution
-  weaken : ∀{Γ Γ' B} → (Γ ⊆ Γ') → TExp Γ B → TExp Γ' B
-  weaken s (var x) = var (s x)
-  weaken s (Λ e) = Λ (weaken (LIST.SET.sub-cons-congr s) e)
-  weaken s (e₁ $ e₂) = weaken s e₁ $ weaken s e₂
-  weaken s zero = zero
-  weaken s (suc e) = suc (weaken s e)
-  weaken s (rec e e₀ es) = rec (weaken s e) (weaken s e₀)
-                           (weaken (LIST.SET.sub-cons-congr s) es)
+  ---- Generic stuff about substitutions and renamings
+  -- Renamings
+  TRen : Ctx → Ctx → Set
+  TRen Γ Γ' = ∀ {A} → A ∈ Γ → A ∈ Γ'
 
-  data TSubst : Ctx → Ctx → Set where
-    [] : ∀{Γ} → TSubst [] Γ
-    _::_ : ∀{Γ Γ' A} → (e : TExp Γ' A) → (γ : TSubst Γ Γ') → TSubst (A :: Γ) Γ'
+  renext : ∀ {Γ Γ'}{f g : TRen Γ Γ'} → (∀ {A} x → f {A} x ≡ g {A} x) → _≡_ {A = TRen Γ Γ'} f g
+  renext f = iext (λ _ → ext f)
 
-  infixr 5 _+++_
-  _+++_ : ∀{Γ Γ' D} → TSubst Γ D → TSubst Γ' D → TSubst (Γ ++ Γ') D
-  [] +++ γ' = γ'
-  (e :: γ) +++ γ' = e :: (γ +++ γ')
+  renId : ∀{Γ} → TRen Γ Γ
+  renId = \ x -> x
 
+  renComp : ∀{B Γ Δ} → TRen Γ Δ → TRen B Γ → TRen B Δ
+  renComp f g = f o g
 
-  emptyγ : ∀{Γ} → TSubst [] Γ
-  emptyγ = []
+  wk : ∀{Γ Γ' A} → TRen Γ Γ' → TRen (A :: Γ) (A :: Γ')
+  wk f Z = Z
+  wk f (S n) = S (f n)
 
-  extendγ : ∀{Γ Γ' A} → (e : TExp Γ' A) → (γ : TSubst Γ Γ') → TSubst (A :: Γ) Γ'
-  extendγ = _::_
+  ren : ∀{Γ Γ'} → TRen Γ Γ' → ∀ {A} → TExp Γ A → TExp Γ' A
+  ren γ (var x) = var (γ x)
+  ren γ (Λ e) = Λ (ren (wk γ) e)
+  ren γ (e₁ $ e₂) = (ren γ e₁) $ (ren γ e₂)
+  ren γ zero = zero
+  ren γ (suc e) = suc (ren γ e)
+  ren γ (rec e e₀ es) = rec (ren γ e) (ren γ e₀) (ren (wk γ) es)
 
-  weakenγ : ∀{Γ Γ' Γ''} → (Γ' ⊆ Γ'') → TSubst Γ Γ' → TSubst Γ Γ''
-  weakenγ s [] = []
-  weakenγ s (e :: γ) = weaken s e :: weakenγ s γ
+  -- Some theorems about renamings
+  wkid : ∀{Γ A C} (x : A ∈ C :: Γ) → wk renId x ≡ renId x
+  wkid Z = Refl
+  wkid (S n) = Refl
 
+  renid : ∀{Γ A} (e : TExp Γ A) → ren renId e ≡ id _ e
+  renid (var x) = Refl
+  renid (Λ e) = resp Λ (resp (λ (f : TRen _ _) → ren f e) 
+                              (renext wkid)
+                        ≡≡ renid e)
+  renid (e₁ $ e₂) = resp2 _$_ (renid e₁) (renid e₂)
+  renid zero = Refl
+  renid (suc e) = resp suc (renid e)
+  renid (rec e e₀ es) = resp3 rec (renid e) (renid e₀)
+                        (resp (λ (f : TRen _ _) → ren f es)
+                              (renext wkid)
+                          ≡≡ renid es)
 
-  lookup : ∀{A Γ Γ'} → TSubst Γ Γ' → (x : A ∈ Γ) → TExp Γ' A
-  lookup [] ()
-  lookup (e :: _) Z = e
-  lookup (_ :: es) (S n) = lookup es n
+  wkcomp : ∀ {B Γ Γ'}(f : TRen Γ Γ')(g : TRen B Γ) {C A} (x : A ∈ (C :: B)) →
+             wk (renComp f g) x ≡ (wk f o wk g) x
+  wkcomp f g Z = Refl
+  wkcomp f g (S n) = Refl
 
-  self-extendγ : ∀{Γ Γ' A} → TSubst Γ Γ' → TSubst (A :: Γ) (A :: Γ')
-  self-extendγ γ = (var Z) :: (weakenγ LIST.SET.sub-cons γ)
+  rencomp : ∀ {B Γ Γ'}(f : TRen Γ Γ')(g : TRen B Γ) {A} (e : TExp B A) →
+             ren (renComp f g) e ≡ (ren f o ren g) e
+  rencomp f g (var x) = Refl
+  rencomp f g (Λ e) = resp Λ (resp (λ (f : TRen _ _) → ren f e) 
+                              (renext (wkcomp f g))
+                              ≡≡ (rencomp (wk f) (wk g) e))
+  rencomp f g (e₁ $ e₂) = resp2 _$_ (rencomp f g e₁) (rencomp f g e₂)
+  rencomp f g zero = Refl
+  rencomp f g (suc e) = resp suc (rencomp f g e)
+  rencomp f g (rec e e₀ es) = resp3 rec (rencomp f g e) (rencomp f g e₀)
+                              (resp (λ (f : TRen _ _) → ren f es) 
+                               (renext (wkcomp f g))
+                               ≡≡ (rencomp (wk f) (wk g) es))
 
-  self-extend-nγ : ∀{Γ Γ'} → (Γ'' : Ctx) → TSubst Γ Γ' → TSubst (Γ'' ++ Γ) (Γ'' ++ Γ')
-  self-extend-nγ [] γ = γ
-  self-extend-nγ (A :: Γ'') γ = self-extendγ (self-extend-nγ Γ'' γ)
+  -- Substitutions
+  TSubst : Ctx → Ctx → Set
+  TSubst Γ Γ' = ∀ {A} → A ∈ Γ → TExp Γ' A
 
+  subext : ∀ {Γ Γ'}{f g : TSubst Γ Γ'} → (∀ {A} x → f {A} x ≡ g {A} x) → _≡_ {A = TSubst Γ Γ'} f g
+  subext f = iext (λ _ → ext f)
+
+  emptyγ : ∀{Γ} → TSubst Γ Γ
+  emptyγ = λ x → var x
+
+  liftγ : ∀{Γ Γ' A} → TSubst Γ Γ' → TSubst (A :: Γ) (A :: Γ')
+  liftγ γ Z = var Z
+  liftγ γ (S n) = ren S (γ n)
+
+  singγ : ∀{Γ A} → TExp Γ A → TSubst (A :: Γ) Γ
+  singγ e Z = e
+  singγ e (S n) = var n
 
   ssubst : ∀{Γ Γ' C} →
            (γ : TSubst Γ Γ') →
            (e : TExp Γ C) →
            TExp Γ' C
-  ssubst γ (var x) = lookup γ x
-  ssubst γ (Λ e) = Λ (ssubst (self-extendγ γ) e)
+  ssubst γ (var x) = γ x
+  ssubst γ (Λ e) = Λ (ssubst (liftγ γ) e)
   ssubst γ (e₁ $ e₂) = (ssubst γ e₁) $ (ssubst γ e₂)
   ssubst γ zero = zero
   ssubst γ (suc e) = suc (ssubst γ e)
-  ssubst γ (rec e e₀ es) = rec (ssubst γ e) (ssubst γ e₀) (ssubst (self-extendγ γ) es)
+  ssubst γ (rec e e₀ es) = rec (ssubst γ e) (ssubst γ e₀) (ssubst (liftγ γ) es)
 
-  compγ : ∀{Γ Γ' Γ''} → TSubst Γ Γ' → TSubst Γ'' Γ → TSubst Γ'' Γ'
-  compγ γ [] = []
-  compγ γ (e :: γ') = ssubst γ e :: (compγ γ γ')
+  subComp : ∀{B Γ Γ'} → TSubst Γ Γ' → TSubst B Γ → TSubst B Γ'
+  subComp f g = ssubst f o g
+
+  extendγ : ∀{Γ Γ' A} → TSubst Γ Γ' → TExp Γ' A → TSubst (A :: Γ) Γ'
+  extendγ γ e = subComp (singγ e) (liftγ γ)
+
+  -- Theorems about renaming and substitution
+  renwklift : ∀{K Γ Δ C}(f : TRen Γ Δ)(g : TSubst K Γ){A}(x : A ∈ (C :: K)) →
+          (ren (wk f) o (liftγ g)) x ≡ liftγ (ren f o g) x
+  renwklift f g Z = Refl
+  renwklift f g (S n) = symm (rencomp (wk f) S (g n)) ≡≡ rencomp S f (g n)
+
+  rensub : ∀{B Γ Δ}(f : TRen Γ Δ)(g : TSubst B Γ){A}(e : TExp B A) →
+          (ren f o ssubst g) e ≡ ssubst (ren f o g) e
+  rensub f g (var x) = Refl
+  rensub f g (Λ e) = resp Λ ((rensub (wk f) (liftγ g) e) ≡≡ 
+                              resp (λ (f : TSubst _ _) → ssubst f e)
+                              (subext (renwklift f g)))
+  rensub f g (e₁ $ e₂) = resp2 _$_ (rensub f g e₁) (rensub f g e₂)
+  rensub f g zero = Refl
+  rensub f g (suc e) = resp suc (rensub f g e)
+  rensub f g (rec e e₀ es) = resp3 rec (rensub f g e) (rensub f g e₀)
+                              ((rensub (wk f) (liftγ g) es) ≡≡ 
+                               resp (λ (f : TSubst _ _) → ssubst f es)
+                               (subext (renwklift f g)))
+
+  liftwk : ∀{K Γ Δ C}(f : TSubst Γ Δ)(g : TRen K Γ){A}(x : A ∈ (C :: K)) →
+                     (liftγ f o wk g) x ≡ liftγ (f o g) x
+  liftwk f g Z = Refl
+  liftwk f g (S n) = Refl
+
+  subren : ∀{B Γ Δ}(f : TSubst Γ Δ)(g : TRen B Γ){A}(e : TExp B A) →
+          (ssubst f o ren g) e ≡ ssubst (f o g) e
+  subren f g (var x) = Refl
+  subren f g (Λ e) = resp Λ ((subren (liftγ f) (wk g) e) ≡≡ 
+                              resp (λ (f : TSubst _ _) → ssubst f e)
+                              (subext (liftwk f g)))
+  subren f g (e₁ $ e₂) = resp2 _$_ (subren f g e₁) (subren f g e₂)
+  subren f g zero = Refl
+  subren f g (suc e) = resp suc (subren f g e)
+  subren f g (rec e e₀ es) = resp3 rec (subren f g e) (subren f g e₀)
+                             ((subren (liftγ f) (wk g) es) ≡≡ 
+                              resp (λ (f : TSubst _ _) → ssubst f es)
+                              (subext (liftwk f g)))
+
+  -- first monad law, the second holds definitionally
+  liftid : ∀{Γ A C} (x : A ∈ C :: Γ) → liftγ emptyγ x ≡ emptyγ x
+  liftid Z = Refl
+  liftid (S n) = Refl
+
+  subid : ∀{Γ}{A} (e : TExp Γ A) → ssubst emptyγ e ≡ id _ e
+  subid (var x) = Refl
+  subid (Λ e) = resp Λ (resp (λ (f : TSubst _ _) → ssubst f e) (subext liftid) ≡≡ subid e)
+  subid (e₁ $ e₂) = resp2 _$_ (subid e₁) (subid e₂)
+  subid zero = Refl
+  subid (suc e) = resp suc (subid e)
+  subid (rec e e₀ es) = resp3 rec (subid e) (subid e₀)
+                        (resp (λ (f : TSubst _ _) → ssubst f es) (subext liftid) ≡≡ subid es)
 
 
-  -- substituting one closed thing
-  subst : ∀{A C} →
-          (e' : TCExp A) →
-          (e : TExp (A :: []) C) →
-          TCExp C
-  subst e' e = ssubst (e' :: []) e
+  -- third monad law
+  liftcomp : ∀ {B Γ Γ'}(f : TSubst Γ Γ')(g : TSubst B Γ) {C A} (x : A ∈ (C :: B)) →
+             liftγ (subComp f g) x ≡ (ssubst (liftγ f) o liftγ g) x
+  liftcomp f g Z = Refl
+  liftcomp f g (S n) = rensub S f (g n) ≡≡ symm (subren (liftγ f) S (g n))
 
-{-
-  -- combining lemma
-  combine-subst : ∀ {A Γ C} {γ : TSubst Γ} →
-                    (Γ' : Ctx) →
-                    (e : TExp (Γ' ++ A :: Γ) C) →
-                    (e' : TCExp A) →
-                    ssubst Γ' (e' :: [])
-                      (ssubst (Γ' ++ A :: []) γ (ID.coe1 (λ x → TExp x C) {!!} e)) ≡
-                      ssubst Γ' (e' :: γ) e
-  combine-subst = {!!}
--}
+  subcomp : ∀{B Γ Γ'}(f : TSubst Γ Γ')(g : TSubst B Γ){A}(t : TExp B A) →
+         ssubst (subComp f g) t ≡ (ssubst f o ssubst g) t
+  subcomp f g (var x) = Refl
+  subcomp f g (Λ e) = resp Λ ((resp (λ (f : TSubst _ _) → ssubst f e) 
+                              (subext (liftcomp f g)))
+                              ≡≡ (subcomp (liftγ f) (liftγ g) e))
+  subcomp f g (e₁ $ e₂) = resp2 _$_ (subcomp f g e₁) (subcomp f g e₂)
+  subcomp f g zero = Refl
+  subcomp f g (suc e) = resp suc (subcomp f g e)
+  subcomp f g (rec e e₀ es) = resp3 rec (subcomp f g e) (subcomp f g e₀)
+                              ((resp (λ (f : TSubst _ _) → ssubst f es) 
+                               (subext (liftcomp f g)))
+                               ≡≡ (subcomp (liftγ f) (liftγ g) es))
 
-{-
+  -- substituting one thing in a closed term
+  subst : ∀{A C} → (e' : TCExp A) → (e : TExp (A :: []) C) → TCExp C
+  subst e' e = ssubst (singγ e') e
 
-  combine-subst : ∀ {Γ Γ' Γ'' C} → (γ : TSubst Γ Γ') →
-                    (γ' : TSubst Γ'' Γ) →
-                    (e : TExp Γ'' C) →
-                    ssubst γ (ssubst γ' e) ≡
-                    ssubst (compγ γ γ') e
-  combine-subst γ γ' (var x) = {!!}
-  combine-subst γ γ' (Λ e) with resp Λ (combine-subst (self-extendγ γ) (self-extendγ γ') e)
-  ... | ass = {!!}
-  combine-subst γ γ' (e₁ $ e₂) = resp2 _$_ (combine-subst γ γ' e₁) (combine-subst γ γ' e₂)
-  combine-subst γ γ' zero = Refl
-
-  another-bs-lemma : ∀ {A C Γ} →
-                    (e' : TExp Γ A) →
-                    (e : TExp Γ C) →
-                    e ≡ ssubst (e' :: self-extend-nγ {!Γ!} []) (weaken (λ {x} → S) {!!})
-  another-bs-lemma e' e = {!!}
-
-  some-bs-lemma : ∀ {Γ A} → (γ : TSubst Γ []) →
-                  (e' : TCExp A) →
-                  γ ≡ (compγ (e' :: []) (weakenγ (λ {x} → S) γ))
-  some-bs-lemma [] e' = Refl
-  some-bs-lemma (e :: γ) e' = resp2 _::_ {!!} (some-bs-lemma γ e')
 
   combine-subst-noob : ∀ {Γ A C} → (γ : TSubst Γ []) →
                     (e : TExp (A :: Γ) C) →
                     (e' : TCExp A) →
-                    ssubst (extendγ e' emptyγ) (ssubst (self-extendγ γ) e) ≡
-                    ssubst (extendγ e' γ) e
-  combine-subst-noob γ e e' with combine-subst (e' :: []) (self-extendγ γ) e
-  ... | ass = {!!}
+                    ssubst (extendγ γ e') e ≡
+                    ssubst (singγ e') (ssubst (liftγ γ) e)
+  combine-subst-noob γ e e' = subcomp (singγ e') (liftγ γ) e
 
--}
-
-  postulate
-    combine-subst-noob : ∀ {Γ A C} → (γ : TSubst Γ []) →
-                       (e : TExp (A :: Γ) C) →
-                       (e' : TCExp A) →
-                       ssubst (extendγ e' emptyγ) (ssubst (self-extendγ γ) e) ≡
-                       ssubst (extendγ e' γ) e
+  extend-nofail-s : ∀{Γ Γ' A B} → (γ : TSubst Γ Γ') → (e : TExp Γ' A) → (n : B ∈ Γ) →
+                    (extendγ γ e) (S n) ≡ γ n
+  extend-nofail-s γ e n = subren (singγ e) S (γ n) ≡≡ subid (γ n)
 
 
   ---- dynamic semantics (and, implicitly, preservation)
@@ -306,15 +392,16 @@ module GÖDEL-T where
 
   -- extend HT to substitutions
   HTΓ : (Γ : Ctx) → TSubst Γ [] → Set
-  HTΓ Γ γ = ∀{A} (x : A ∈ Γ) → HT A (lookup γ x)
+  HTΓ Γ γ = ∀{A} (x : A ∈ Γ) -> HT A (γ x)
 
-  emptyHTΓ : ∀{η : TSubst [] []} → HTΓ [] η
+  emptyHTΓ : ∀{η : TSubst [] []} -> HTΓ [] η
   emptyHTΓ ()
 
-  extendHTΓ : ∀{Γ A} {e : TCExp A} {γ : TSubst Γ []} →
-              HTΓ Γ γ → HT A e → HTΓ (A :: Γ) (extendγ e γ)
-  extendHTΓ η HT Z = HT
-  extendHTΓ η HT (S n) = η n
+  extendHTΓ : ∀{Γ A} {e : TCExp A} {γ : TSubst Γ []} ->
+              HTΓ Γ γ -> HT A e -> HTΓ (A :: Γ) (extendγ γ e)
+  extendHTΓ η ht Z = ht
+  extendHTΓ {_} {_} {e} {γ} η ht {B} (S n) = 
+             ID.coe1 (λ x → HT B x) (symm (extend-nofail-s γ e n)) (η n)
 
   -- head expansion lemma
   head-expansion : ∀{A} {e e' : TCExp A} → (e ~>* e') → HT A e' → HT A e
@@ -323,7 +410,6 @@ module GÖDEL-T where
   head-expansion {A ⇒ B} eval (halts eval' val , ht-logic) =
      halts (eval-trans eval eval') val ,
      (λ e' ht → head-expansion (eval-app-l eval) (ht-logic e' ht))
-
 
   -- the main theorem
   all-HT : ∀{Γ A} {γ : TSubst Γ []} → (e : TExp Γ A) → HTΓ Γ γ
@@ -337,25 +423,21 @@ module GÖDEL-T where
   all-HT {Γ} {A ⇒ B} {γ} (Λ e) η =
     (halts eval-refl val-lam) ,
      lam-case
-    where lam-case : (e' : TCExp A) → HT A e' → HT B (Λ (ssubst (self-extendγ γ) e) $ e')
-          lam-case e' ht' with all-HT {γ = extendγ e' γ} e (extendHTΓ η ht')
-          ... | ht with eval-step step-beta
-          ... | steps-full with combine-subst-noob γ e _
-          ... | eq = head-expansion
-                    (ID.coe1 (λ x → (Λ (ssubst (self-extendγ γ) e) $ e') ~>* x) eq steps-full) ht
+    where lam-case : (e' : TCExp A) → HT A e' → HT B (Λ (ssubst (liftγ γ) e) $ e')
+          lam-case e' ht' with all-HT {γ = extendγ γ e'} e (extendHTΓ η ht')
+          ... | ht with eval-step (step-beta {e = (ssubst (liftγ γ) e)})
+          ... | steps-full with combine-subst-noob γ e e'
+          ... | eq = head-expansion steps-full (ID.coe1 (HT B) eq ht)
 
   all-HT {Γ} {A} {γ} (rec e e₀ es) η = inner (all-HT e η)
-    where inner : {e : TNat} → HTω e → HT A (rec e (ssubst γ e₀) (ssubst (self-extendγ γ) es))
-          inner (HT-z E) with eval-trans (eval-rec {es = (ssubst (self-extendγ γ) es)} E)
+    where inner : {e : TNat} → HTω e → HT A (rec e (ssubst γ e₀) (ssubst (liftγ γ) es))
+          inner (HT-z E) with eval-trans (eval-rec {es = (ssubst (liftγ γ) es)} E)
                               (eval-step step-rec-z)
           ... | steps-full = head-expansion steps-full (all-HT e₀ η)
-          inner {e} (HT-s E ht') with all-HT {γ = extendγ _ γ} es (extendHTΓ η (inner ht'))
+          inner {e} (HT-s E ht') with all-HT {γ = extendγ γ _} es (extendHTΓ η (inner ht'))
           ... | ht with eval-trans (eval-rec {e₀ = (ssubst γ e₀)} E) (eval-step step-rec-s)
           ... | steps-full with combine-subst-noob γ es _
-          ... | eq = head-expansion
-                      (ID.coe1 (λ x → (rec e (ssubst γ e₀) (ssubst (self-extendγ γ) es)) ~>* x)
-                               eq steps-full)
-                      ht
+          ... | eq = head-expansion steps-full (ID.coe1 (HT _) eq ht)
 
 {-
   all-halt : ∀{A} → (e : TCExp A) → THalts e
@@ -366,8 +448,11 @@ module GÖDEL-T where
 
   ---- some example programs
   -- boy, de bruijn indexes are unreadable
-  wk : ∀{Γ B} → TCExp B → TExp Γ B
-  wk e = weaken (LIST.SET.sub-appendr [] _) e
+  bs-subst : ∀{Γ} → TRen [] Γ
+  bs-subst ()
+
+  w : ∀{Γ B} → TCExp B → TExp Γ B
+  w e = ren bs-subst e
 
   one : TNat
   one = suc zero
@@ -380,11 +465,11 @@ module GÖDEL-T where
   t-id : ∀{A} → TCExp (A ⇒ A)
   t-id = Λ (var Z)
   t-iterate : ∀{A} → TCExp (nat ⇒ (A ⇒ A) ⇒ (A ⇒ A))
-  t-iterate = Λ (Λ (rec (var (S Z)) (wk t-id)
-                     (wk t-compose $ var (S Z) $ var Z)))
+  t-iterate = Λ (Λ (rec (var (S Z)) (w t-id)
+                     (w t-compose $ var (S Z) $ var Z)))
   t-ack : TCExp (nat ⇒ nat ⇒ nat)
   t-ack = Λ (rec (var Z) (Λ (suc (var Z)))
-              (Λ (wk t-iterate $ var Z $ var (S Z) $ (var (S Z) $ wk one))))
+              (Λ (w t-iterate $ var Z $ var (S Z) $ (var (S Z) $ w one))))
 
 
 open GÖDEL-T public
