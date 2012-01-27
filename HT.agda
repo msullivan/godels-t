@@ -40,7 +40,7 @@ module HT where
   HT-halts : ∀{A} → (e : TCExp A) → HT A e → THalts e
   HT-halts {nat} e (HT-z E) = halts E val-zero
   HT-halts {nat} e (HT-s {.e} {e'} E HT) with HT-halts e' HT
-  ... | halts eval val = halts (eval-trans E (eval-suc eval)) (val-suc val)
+  ... | halts eval val = halts (eval-trans E (eval-compat step-suc eval)) (val-suc val)
   HT-halts {A ⇒ B} _ (h , _) = h
 
 
@@ -63,7 +63,7 @@ module HT where
   head-expansion {nat} eval (HT-s E HT) = HT-s (eval-trans eval E) HT
   head-expansion {A ⇒ B} eval (halts eval' val , ht-logic) =
      halts (eval-trans eval eval') val ,
-     (λ e' ht → head-expansion (eval-app-l eval) (ht-logic e' ht))
+     (λ e' ht → head-expansion (eval-compat step-app-l eval) (ht-logic e' ht))
 
   -- the main theorem
   all-HT : ∀{Γ A} {γ : TSubst Γ []} → (e : TExp Γ A) → HTΓ Γ γ
@@ -85,11 +85,12 @@ module HT where
 
   all-HT {Γ} {A} {γ} (rec e e₀ es) η = inner (all-HT e η)
     where inner : {e : TNat} → HTω e → HT A (rec e (ssubst γ e₀) (ssubst (liftγ γ) es))
-          inner (HT-z E) with eval-trans (eval-rec {es = (ssubst (liftγ γ) es)} E)
+          inner (HT-z E) with eval-trans (eval-compat (step-rec {es = (ssubst (liftγ γ) es)}) E)
                               (eval-step step-rec-z)
           ... | steps-full = head-expansion steps-full (all-HT e₀ η)
           inner {e} (HT-s E ht') with all-HT {γ = extendγ γ _} es (extendHTΓ η (inner ht'))
-          ... | ht with eval-trans (eval-rec {e₀ = (ssubst γ e₀)} E) (eval-step step-rec-s)
+          ... | ht with eval-trans (eval-compat (step-rec {e₀ = (ssubst γ e₀)}) E)
+                                   (eval-step step-rec-s)
           ... | steps-full with combine-subst-noob γ es _
           ... | eq = head-expansion steps-full (ID.coe1 (HT _) eq ht)
 

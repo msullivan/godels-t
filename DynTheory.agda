@@ -14,28 +14,12 @@ module DynTheory where
   eval-trans eval-refl E2 = E2
   eval-trans (eval-cons S1 E1') E2 = eval-cons S1 (eval-trans E1' E2)
 
-  -- stupid compatibility rules that lift the step compat rules to
-  -- the eval level
-  eval-app-l : ∀{A B} {e₁ e₁' : TCExp (A ⇒ B)} {e₂ : TCExp A} →
-                e₁ ~>* e₁' → (e₁ $ e₂) ~>* (e₁' $ e₂)
-  eval-app-l eval-refl = eval-refl
-  eval-app-l (eval-cons S1 D) = eval-cons (step-app-l S1) (eval-app-l D)
-
-  eval-app-r : ∀{A B} {e₂ e₂' : TCExp A} → (e₁ : TCExp (A ⇒ B)) →
-                e₂ ~>* e₂' → (e₁ $ e₂) ~>* (e₁ $ e₂')
-  eval-app-r _ eval-refl = eval-refl
-  eval-app-r _ (eval-cons S1 D) = eval-cons (step-app-r S1) (eval-app-r _ D)
-
-  eval-rec   : ∀{A} {e e' : TCExp nat} {e₀ : TCExp A} {es : TExp (A :: []) A} →
-                e ~>* e' → (rec e e₀ es) ~>* (rec e' e₀ es)
-  eval-rec eval-refl = eval-refl
-  eval-rec (eval-cons S1 D) = eval-cons (step-rec S1) (eval-rec D)
-
-  eval-suc   : {e e' : TCExp nat} →
-                e ~>* e' → suc e ~>* suc e'
-  eval-suc eval-refl = eval-refl
-  eval-suc (eval-cons S1 D) = eval-cons (step-suc S1) (eval-suc D)
-
+  -- prove that we can life any compatibility rule from steps to eval
+  eval-compat : ∀{A B} {P : TCExp A -> TCExp B} →
+                 (∀{e e'} → (e ~> e' → P e ~> P e')) →
+                 {e e' : TCExp A} → e ~>* e' → P e ~>* P e'
+  eval-compat f eval-refl = eval-refl
+  eval-compat f (eval-cons S1 D) = eval-cons (f S1) (eval-compat f D)
 
 
 open DynTheory public
