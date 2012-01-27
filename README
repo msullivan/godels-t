@@ -1,0 +1,4 @@
+Some formalization of properties of Godel's System T in agda.
+See T.agda.
+
+I think I am using the module system stupidly.

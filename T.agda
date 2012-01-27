@@ -30,23 +30,25 @@
 -- for any brain damage. There are probably a bunch of ways to clean
 -- things up and reduce some code duplication.
 
+-- Source tree overview:
+--  T.agda: this file; contains the syntax (and intrinstically the
+--          static semantics), denotational semantics, definition of
+--          substitution (and intrinstically the substitution lemma), 
+--          and dynamic semantics (intrinstically preservation).
+--  Progress.agda: statement and proof of progress
+--  SubstTheory.agda: a bunch of theorems about substitution and 
+--                    renaming that are needed for the HT proof
+--  DynTheory.agda: some simple lemmas about the dynamic semantics
+--  HT.agda: proof of hereditary termination
+--  DenotCommutes.agda: incomplete proof that the denotational
+--                      semantics commute with the dynamics
+--  Examples.agda: some simple example T programs
+--  All.agda: just includes everything else to make sure it all works
+
 
 module T where
 
 open import Prelude
-
--- We could avoid needing to do this, but it would be a pain in the
--- ass.  We would have to do a lot of passing around of proofs that
--- substitutions behave the same.  It's easier to just use postulated
--- extensional equivalence to convert those proofs into full
--- equality proofs.
-postulate iext : {A : Set}{B : A → Set}{f : ∀ {a} → B a}{g : ∀{a} → B a} →
-                 (∀ a → f {a} ≡ g {a}) →
-                 _≡_ { A = {a : A} → B a} f g
-
-postulate ext : {A : Set}{B : A → Set}{f : ∀ a → B a}{g : ∀ a → B a} →
-                (∀ a → f a ≡ g a) → f ≡ g
-
 
 module GÖDEL-T where
 
@@ -99,14 +101,10 @@ module GÖDEL-T where
   cmeaning : ∀{A} → TCExp A → interp A
   cmeaning e = meaning e emptyη
 
-  ---- Definition and theory related to substitution.
-  ---- (Lots of theory. *Lots*. Too much. Sigh.)
+  ---- Definition related to substitution.
   -- Renamings
   TRen : Ctx → Ctx → Set
   TRen Γ Γ' = ∀ {A} → A ∈ Γ → A ∈ Γ'
-
-  renext : ∀ {Γ Γ'}{f g : TRen Γ Γ'} → (∀ {A} x → f {A} x ≡ g {A} x) → _≡_ {A = TRen Γ Γ'} f g
-  renext f = iext (λ _ → ext f)
 
   renId : ∀{Γ} → TRen Γ Γ
   renId = \ x -> x
@@ -126,49 +124,9 @@ module GÖDEL-T where
   ren γ (suc e) = suc (ren γ e)
   ren γ (rec e e₀ es) = rec (ren γ e) (ren γ e₀) (ren (wk γ) es)
 
-  -- Some theorems about renamings
-  wkid : ∀{Γ A C} (x : A ∈ C :: Γ) → wk renId x ≡ renId x
-  wkid Z = Refl
-  wkid (S n) = Refl
-
-  renid : ∀{Γ A} (e : TExp Γ A) → ren renId e ≡ id _ e
-  renid (var x) = Refl
-  renid (Λ e) = resp Λ (resp (λ (f : TRen _ _) → ren f e) 
-                              (renext wkid)
-                        ≡≡ renid e)
-  renid (e₁ $ e₂) = resp2 _$_ (renid e₁) (renid e₂)
-  renid zero = Refl
-  renid (suc e) = resp suc (renid e)
-  renid (rec e e₀ es) = resp3 rec (renid e) (renid e₀)
-                        (resp (λ (f : TRen _ _) → ren f es)
-                              (renext wkid)
-                          ≡≡ renid es)
-
-  wkcomp : ∀ {B Γ Γ'}(f : TRen Γ Γ')(g : TRen B Γ) {C A} (x : A ∈ (C :: B)) →
-             wk (renComp f g) x ≡ (wk f o wk g) x
-  wkcomp f g Z = Refl
-  wkcomp f g (S n) = Refl
-
-  rencomp : ∀ {B Γ Γ'}(f : TRen Γ Γ')(g : TRen B Γ) {A} (e : TExp B A) →
-             ren (renComp f g) e ≡ (ren f o ren g) e
-  rencomp f g (var x) = Refl
-  rencomp f g (Λ e) = resp Λ (resp (λ (f : TRen _ _) → ren f e) 
-                              (renext (wkcomp f g))
-                              ≡≡ (rencomp (wk f) (wk g) e))
-  rencomp f g (e₁ $ e₂) = resp2 _$_ (rencomp f g e₁) (rencomp f g e₂)
-  rencomp f g zero = Refl
-  rencomp f g (suc e) = resp suc (rencomp f g e)
-  rencomp f g (rec e e₀ es) = resp3 rec (rencomp f g e) (rencomp f g e₀)
-                              (resp (λ (f : TRen _ _) → ren f es) 
-                               (renext (wkcomp f g))
-                               ≡≡ (rencomp (wk f) (wk g) es))
-
   -- Substitutions
   TSubst : Ctx → Ctx → Set
   TSubst Γ Γ' = ∀ {A} → A ∈ Γ → TExp Γ' A
-
-  subext : ∀ {Γ Γ'}{f g : TSubst Γ Γ'} → (∀ {A} x → f {A} x ≡ g {A} x) → _≡_ {A = TSubst Γ Γ'} f g
-  subext f = iext (λ _ → ext f)
 
   emptyγ : ∀{Γ} → TSubst Γ Γ
   emptyγ = λ x → var x
@@ -198,97 +156,10 @@ module GÖDEL-T where
   extendγ : ∀{Γ Γ' A} → TSubst Γ Γ' → TExp Γ' A → TSubst (A :: Γ) Γ'
   extendγ γ e = subComp (singγ e) (liftγ γ)
 
-  -- Theorems about renaming and substitution
-  renwklift : ∀{K Γ Δ C}(f : TRen Γ Δ)(g : TSubst K Γ){A}(x : A ∈ (C :: K)) →
-          (ren (wk f) o (liftγ g)) x ≡ liftγ (ren f o g) x
-  renwklift f g Z = Refl
-  renwklift f g (S n) = symm (rencomp (wk f) S (g n)) ≡≡ rencomp S f (g n)
-
-  rensub : ∀{B Γ Δ}(f : TRen Γ Δ)(g : TSubst B Γ){A}(e : TExp B A) →
-          (ren f o ssubst g) e ≡ ssubst (ren f o g) e
-  rensub f g (var x) = Refl
-  rensub f g (Λ e) = resp Λ ((rensub (wk f) (liftγ g) e) ≡≡ 
-                              resp (λ (f : TSubst _ _) → ssubst f e)
-                              (subext (renwklift f g)))
-  rensub f g (e₁ $ e₂) = resp2 _$_ (rensub f g e₁) (rensub f g e₂)
-  rensub f g zero = Refl
-  rensub f g (suc e) = resp suc (rensub f g e)
-  rensub f g (rec e e₀ es) = resp3 rec (rensub f g e) (rensub f g e₀)
-                              ((rensub (wk f) (liftγ g) es) ≡≡ 
-                               resp (λ (f : TSubst _ _) → ssubst f es)
-                               (subext (renwklift f g)))
-
-  liftwk : ∀{K Γ Δ C}(f : TSubst Γ Δ)(g : TRen K Γ){A}(x : A ∈ (C :: K)) →
-                     (liftγ f o wk g) x ≡ liftγ (f o g) x
-  liftwk f g Z = Refl
-  liftwk f g (S n) = Refl
-
-  subren : ∀{B Γ Δ}(f : TSubst Γ Δ)(g : TRen B Γ){A}(e : TExp B A) →
-          (ssubst f o ren g) e ≡ ssubst (f o g) e
-  subren f g (var x) = Refl
-  subren f g (Λ e) = resp Λ ((subren (liftγ f) (wk g) e) ≡≡ 
-                              resp (λ (f : TSubst _ _) → ssubst f e)
-                              (subext (liftwk f g)))
-  subren f g (e₁ $ e₂) = resp2 _$_ (subren f g e₁) (subren f g e₂)
-  subren f g zero = Refl
-  subren f g (suc e) = resp suc (subren f g e)
-  subren f g (rec e e₀ es) = resp3 rec (subren f g e) (subren f g e₀)
-                             ((subren (liftγ f) (wk g) es) ≡≡ 
-                              resp (λ (f : TSubst _ _) → ssubst f es)
-                              (subext (liftwk f g)))
-
-  -- first monad law, the second holds definitionally
-  liftid : ∀{Γ A C} (x : A ∈ C :: Γ) → liftγ emptyγ x ≡ emptyγ x
-  liftid Z = Refl
-  liftid (S n) = Refl
-
-  subid : ∀{Γ}{A} (e : TExp Γ A) → ssubst emptyγ e ≡ id _ e
-  subid (var x) = Refl
-  subid (Λ e) = resp Λ (resp (λ (f : TSubst _ _) → ssubst f e) (subext liftid) ≡≡ subid e)
-  subid (e₁ $ e₂) = resp2 _$_ (subid e₁) (subid e₂)
-  subid zero = Refl
-  subid (suc e) = resp suc (subid e)
-  subid (rec e e₀ es) = resp3 rec (subid e) (subid e₀)
-                        (resp (λ (f : TSubst _ _) → ssubst f es) (subext liftid) ≡≡ subid es)
-
-
-  -- third monad law
-  liftcomp : ∀ {B Γ Γ'}(f : TSubst Γ Γ')(g : TSubst B Γ) {C A} (x : A ∈ (C :: B)) →
-             liftγ (subComp f g) x ≡ (ssubst (liftγ f) o liftγ g) x
-  liftcomp f g Z = Refl
-  liftcomp f g (S n) = rensub S f (g n) ≡≡ symm (subren (liftγ f) S (g n))
-
-  subcomp : ∀{B Γ Γ'}(f : TSubst Γ Γ')(g : TSubst B Γ){A}(t : TExp B A) →
-         ssubst (subComp f g) t ≡ (ssubst f o ssubst g) t
-  subcomp f g (var x) = Refl
-  subcomp f g (Λ e) = resp Λ ((resp (λ (f : TSubst _ _) → ssubst f e) 
-                              (subext (liftcomp f g)))
-                              ≡≡ (subcomp (liftγ f) (liftγ g) e))
-  subcomp f g (e₁ $ e₂) = resp2 _$_ (subcomp f g e₁) (subcomp f g e₂)
-  subcomp f g zero = Refl
-  subcomp f g (suc e) = resp suc (subcomp f g e)
-  subcomp f g (rec e e₀ es) = resp3 rec (subcomp f g e) (subcomp f g e₀)
-                              ((resp (λ (f : TSubst _ _) → ssubst f es) 
-                               (subext (liftcomp f g)))
-                               ≡≡ (subcomp (liftγ f) (liftγ g) es))
 
   -- substituting one thing in a closed term
   subst : ∀{A C} → (e' : TCExp A) → (e : TExp (A :: []) C) → TCExp C
   subst e' e = ssubst (singγ e') e
-
-  -- The lemma about combining substitutions that we are actually
-  -- going to need. Being able to prove this lemma was the cause
-  -- of most of the grief during this proof.
-  combine-subst-noob : ∀ {Γ A C} → (γ : TSubst Γ []) →
-                    (e : TExp (A :: Γ) C) →
-                    (e' : TCExp A) →
-                    ssubst (extendγ γ e') e ≡
-                    ssubst (singγ e') (ssubst (liftγ γ) e)
-  combine-subst-noob γ e e' = subcomp (singγ e') (liftγ γ) e
-
-  extend-nofail-s : ∀{Γ Γ' A B} → (γ : TSubst Γ Γ') → (e : TExp Γ' A) → (n : B ∈ Γ) →
-                    (extendγ γ e) (S n) ≡ γ n
-  extend-nofail-s γ e n = subren (singγ e) S (γ n) ≡≡ subid (γ n)
 
 
   ---- dynamic semantics (and, implicitly, preservation)
@@ -298,7 +169,8 @@ module GÖDEL-T where
     val-lam : ∀{A B} {e : TExp (A :: []) B} → TVal (Λ e)
 
   -- only worry about closed steps; embed preservation in the statement
-  -- the evaluation semantics are non-deterministic; we could get rid of step-app-r
+  -- the evaluation semantics are non-deterministic;
+  -- we could get rid of step-app-r, step-suc
   data _~>_ : ∀{A} → TCExp A → TCExp A → Set where
     step-app-l : ∀{A B} {e₁ e₁' : TCExp (A ⇒ B)} {e₂ : TCExp A} →
                   e₁ ~> e₁' → (e₁ $ e₂) ~> (e₁' $ e₂)
@@ -315,268 +187,13 @@ module GÖDEL-T where
     step-rec-s : ∀{A} {e : TCExp nat} {e₀ : TCExp A} {es : TExp (A :: []) A} →
                   (rec (suc e) e₀ es) ~> subst (rec e e₀ es) es
 
-
-  ---- progress
-  -- Define a datatype representing that a term satisfies progress
-  data TProgress : ∀{A} → TCExp A → Set where
-    prog-val : ∀{A} {e : TCExp A} → (D : TVal e) → TProgress e
-    prog-step : ∀{A} {e e' : TCExp A} → (D : e ~> e') → TProgress e
-
-  -- prove that all terms satisfy progress
-  progress : ∀{A} (e : TCExp A) → TProgress e
-  progress (var ())
-  progress (Λ e) = prog-val val-lam
-  progress (e₁ $ e₂) with progress e₁
-  progress (e₁ $ e₂) | prog-step D = prog-step (step-app-l D)
-  progress (.(Λ e) $ e₂) | prog-val (val-lam {_} {_} {e}) with progress e₂
-  ... | prog-val D = prog-step step-beta
-  ... | prog-step D' = prog-step (step-app-r D')
-  progress zero = prog-val val-zero
-  progress (suc e) with progress e
-  ... | prog-val D = prog-val (val-suc D)
-  ... | prog-step D' = prog-step (step-suc D')
-  progress (rec e e₀ es) with progress e
-  progress (rec .zero e₀ es) | prog-val val-zero = prog-step step-rec-z
-  progress (rec .(suc e) e₀ es) | prog-val (val-suc {e} y) = prog-step step-rec-s
-  ... | prog-step D = prog-step (step-rec D)
-
-  ---- dynamic semantics commute with denotational semantics
-  lift-nγ : ∀{Γ Γ'}K → TSubst Γ Γ' → TSubst (K ++ Γ) (K ++ Γ')
-  lift-nγ [] γ = γ
-  lift-nγ (A :: K) γ = liftγ (lift-nγ K γ)
-
-
-  data MList : Ctx -> Set where
-    [] : MList []
-    _::_ : ∀{Γ A} → interp A → MList Γ → MList (A :: Γ)
-
-  extend-nη : ∀{Γ K} → meaningη Γ → MList K → meaningη (K ++ Γ)
-  extend-nη η [] = η
-  extend-nη η (x :: xs) = extendη (extend-nη η xs) x
-
-
-  sn-ren : ∀{Γ}K → TRen Γ (K ++ Γ)
-  sn-ren [] = renId
-  sn-ren (x :: xs) = renComp S (sn-ren xs)
-
-  ren-sn : ∀{Γ A}K → TExp Γ A → TExp (K ++ Γ) A
-  ren-sn K e = ren (sn-ren K) e
-
-
-  meaning-wk : ∀{A Γ} (e : TExp Γ A) (η : meaningη Γ) (Γ' : Ctx) (xs : MList Γ') →
-                meaning e η ≡
-                meaning (ren-sn Γ' e) (extend-nη η xs)
-  meaning-wk (var x) η [] [] = Refl
-  meaning-wk (var x) η (A' :: Γ') (x' :: xs) = meaning-wk (var x) η Γ' xs
-  meaning-wk (Λ e) η Γ' xs = {!!}
-  meaning-wk (e₁ $ e₂) η Γ' xs = {!!}
-  meaning-wk zero η Γ' xs = Refl
-  meaning-wk (suc e) η Γ' xs = {!!}
-  meaning-wk (rec e e₀ es) η Γ' xs = {!!}
-
-{-
-  meaning-wk {A ⇒ _} (Λ e) η x Γ' xs  = ext lemma
-    where lemma : (a : interp A) → meaning e (extendη η a) ≡
-                                   meaning (ren (wk S) e) (extendη (extendη η x) a)
-          lemma a with meaning-wk e (extendη η a) x
-          ... | butt = {!!}
-  meaning-wk (e₁ $ e₂) η x Γ' xs  = resp2 (id _) (meaning-wk e₁ η x) (meaning-wk e₂ η x)
-  meaning-wk zero η x Γ' xs  = Refl
-  meaning-wk (suc e) η x Γ' xs  = {!!}
-  meaning-wk (rec e e₀ es) η x Γ' xs  = {!!}
--}
-  meaning-subst : ∀{A B}Γ (xs : MList Γ) (e' : TCExp B)(e : TExp (Γ ++ [ B ]) A) →
-                  meaning e (extend-nη (extendη emptyη (cmeaning e')) xs) ≡
-                  meaning (ssubst (lift-nγ Γ (singγ e')) e) (extend-nη emptyη xs)
-  meaning-subst [] [] e' (var Z) = Refl
-  meaning-subst [] [] e' (var (S ()))
-  meaning-subst (C :: Γ) (x :: xs) e' (var Z) = Refl
-  meaning-subst (C :: Γ) (x :: xs) e' (var (S n)) =
-      meaning-subst Γ xs e' (var n) ≡≡ symm {!!}
---meaning-wk (lift-nγ Γ (singγ e') n) (extend-nη emptyη xs) x
-  meaning-subst Γ xs e' (Λ e) =
-      ext (λ x → meaning-subst (_ :: Γ) (x :: xs) e' e)
-  meaning-subst Γ xs e' (e₁ $ e₂) =
-      resp2 (id _) (meaning-subst Γ xs e' e₁) (meaning-subst Γ xs e' e₂)
-  meaning-subst Γ xs e' zero = Refl
-  meaning-subst Γ xs e' (suc e) = resp S (meaning-subst Γ xs e' e)
-  meaning-subst Γ xs e' (rec e e₀ es) = {!!}
-
-  meaning-subst' : ∀{A B}(e' : TCExp B)(e : TExp [ B ] A) →
-                  meaning e (extendη emptyη (cmeaning e')) ≡
-                  cmeaning (subst e' e)
-  meaning-subst' = meaning-subst [] []
-
-  meaning-steps : ∀{A}{e e' : TCExp A} → (e ~> e') → cmeaning e ≡ cmeaning e'
-  meaning-steps {e = e₁ $ e₂} (step-app-l St) =
-         resp (λ f → f (meaning e₂ emptyη)) (meaning-steps St)
-  meaning-steps {e = e₁ $ e₂} (step-app-r St) =
-         resp (λ x → meaning e₁ emptyη x) (meaning-steps St)
-  meaning-steps {e = (Λ e₁) $ e₂} step-beta = meaning-subst' e₂ e₁
-  meaning-steps (step-suc St) = resp S (meaning-steps St)
-  meaning-steps {e = rec e e₀ es} (step-rec St) =
-         resp (λ e' → NAT.fold (meaning e₀ emptyη)
-                        (λ n x → meaning es (extendη emptyη x)) e')
-              (meaning-steps St)
-  meaning-steps step-rec-z = Refl
-  meaning-steps {e = rec (suc e) e₀ es} step-rec-s = meaning-subst' (rec e e₀ es) es
-
-
-  ---- iterated stepping, and theorems about it
+  -- iterated stepping
   data _~>*_ : ∀{A} → TCExp A → TCExp A → Set where
     eval-refl : ∀{A} {e : TCExp A} → e ~>* e
     eval-cons : ∀{A} {e e' e'' : TCExp A} →
                e ~> e' → e' ~>* e'' → e ~>* e''
 
-  -- and prove some obvious theorems about it
-  -- transitivity (which makes sense, given that it is the transitive closure)
-  eval-trans : ∀{A} {e e' e'' : TCExp A} →
-                e ~>* e' → e' ~>* e'' → e ~>* e''
-  eval-trans eval-refl E2 = E2
-  eval-trans (eval-cons S1 E1') E2 = eval-cons S1 (eval-trans E1' E2)
-
   eval-step : ∀{A} {e e' : TCExp A} → e ~> e' → e ~>* e'
   eval-step s = eval-cons s eval-refl
-
-  -- stupid compatibility rules that lift the step compat rules to
-  -- the eval level
-  eval-app-l : ∀{A B} {e₁ e₁' : TCExp (A ⇒ B)} {e₂ : TCExp A} →
-                e₁ ~>* e₁' → (e₁ $ e₂) ~>* (e₁' $ e₂)
-  eval-app-l eval-refl = eval-refl
-  eval-app-l (eval-cons S1 D) = eval-cons (step-app-l S1) (eval-app-l D)
-
-  eval-app-r : ∀{A B} {e₂ e₂' : TCExp A} → (e₁ : TCExp (A ⇒ B)) →
-                e₂ ~>* e₂' → (e₁ $ e₂) ~>* (e₁ $ e₂')
-  eval-app-r _ eval-refl = eval-refl
-  eval-app-r _ (eval-cons S1 D) = eval-cons (step-app-r S1) (eval-app-r _ D)
-
-  eval-rec   : ∀{A} {e e' : TCExp nat} {e₀ : TCExp A} {es : TExp (A :: []) A} →
-                e ~>* e' → (rec e e₀ es) ~>* (rec e' e₀ es)
-  eval-rec eval-refl = eval-refl
-  eval-rec (eval-cons S1 D) = eval-cons (step-rec S1) (eval-rec D)
-
-  eval-suc   : {e e' : TCExp nat} →
-                e ~>* e' → suc e ~>* suc e'
-  eval-suc eval-refl = eval-refl
-  eval-suc (eval-cons S1 D) = eval-cons (step-suc S1) (eval-suc D)
-
-
-  ---- Halting and Hereditary Termination
-  -- Should I use a record, or the product thing, or something else?
-  data THalts : ∀{A} → TCExp A → Set where
-    halts : {A : TTp} {e e' : TCExp A} → (eval : (e ~>* e')) → (val : TVal e') → THalts e
-
-  -- Extract that the lhs must halt if its application to something halts.
-  -- I think this isn't actually useful, though, since to use it we would
-  -- need to be able to produce an argument to the function.
-  lhs-halt : {A B : TTp} {e : TCExp (A ⇒ B)} {e' : TCExp A} →
-              THalts (e $ e') → THalts e
-  lhs-halt (halts eval-refl ())
-  lhs-halt (halts (eval-cons (step-app-l S1) E) val) with lhs-halt (halts E val)
-  ... | halts E' val' = halts (eval-cons S1 E') val'
-  lhs-halt (halts (eval-cons (step-app-r S2) E) val) = lhs-halt (halts E val)
-  lhs-halt (halts (eval-cons step-beta E) val) = halts eval-refl val-lam
-
-  -- I think the induction principle for this datatype is the definition of
-  -- HTω from http://www.cs.cmu.edu/~rwh/courses/typesys/hw3/hw3-handout.pdf
-  data HTω : TNat → Set where
-    HT-z : {e : TNat} → (E : e ~>* zero) → HTω e
-    HT-s : {e e' : TNat} → (E : e ~>* suc e') → (HT : HTω e') → HTω e
-
-  -- definition of hereditary termination
-  HT : (A : TTp) → TCExp A → Set
-  HT nat e = HTω e
-  -- It is kind of ugly to have to hang on to the halting proof.
-  HT (A ⇒ B) e = THalts e × ((e' : TCExp A) → HT A e' → HT B (e $ e'))
-
-  -- proof that hereditary termination implies termination
-  HT-halts : ∀{A} → (e : TCExp A) → HT A e → THalts e
-  HT-halts {nat} e (HT-z E) = halts E val-zero
-  HT-halts {nat} e (HT-s {.e} {e'} E HT) with HT-halts e' HT
-  ... | halts eval val = halts (eval-trans E (eval-suc eval)) (val-suc val)
-  HT-halts {A ⇒ B} _ (h , _) = h
-
-
-  -- extend HT to substitutions
-  HTΓ : (Γ : Ctx) → TSubst Γ [] → Set
-  HTΓ Γ γ = ∀{A} (x : A ∈ Γ) -> HT A (γ x)
-
-  emptyHTΓ : ∀{η : TSubst [] []} -> HTΓ [] η
-  emptyHTΓ ()
-
-  extendHTΓ : ∀{Γ A} {e : TCExp A} {γ : TSubst Γ []} ->
-              HTΓ Γ γ -> HT A e -> HTΓ (A :: Γ) (extendγ γ e)
-  extendHTΓ η ht Z = ht
-  extendHTΓ {_} {_} {e} {γ} η ht {B} (S n) = 
-             ID.coe1 (λ x → HT B x) (symm (extend-nofail-s γ e n)) (η n)
-
-  -- head expansion lemma
-  head-expansion : ∀{A} {e e' : TCExp A} → (e ~>* e') → HT A e' → HT A e
-  head-expansion {nat} eval (HT-z E) = HT-z (eval-trans eval E)
-  head-expansion {nat} eval (HT-s E HT) = HT-s (eval-trans eval E) HT
-  head-expansion {A ⇒ B} eval (halts eval' val , ht-logic) =
-     halts (eval-trans eval eval') val ,
-     (λ e' ht → head-expansion (eval-app-l eval) (ht-logic e' ht))
-
-  -- the main theorem
-  all-HT : ∀{Γ A} {γ : TSubst Γ []} → (e : TExp Γ A) → HTΓ Γ γ
-            → HT A (ssubst γ e)
-  all-HT (var x) η = η x
-  all-HT (e₁ $ e₂) η with all-HT e₁ η
-  ... | _ , HT₁ = HT₁ (ssubst _ e₂) (all-HT e₂ η)
-  all-HT zero η = HT-z eval-refl
-  all-HT (suc e) η = HT-s eval-refl (all-HT e η)
-
-  all-HT {Γ} {A ⇒ B} {γ} (Λ e) η =
-    (halts eval-refl val-lam) ,
-     lam-case
-    where lam-case : (e' : TCExp A) → HT A e' → HT B (Λ (ssubst (liftγ γ) e) $ e')
-          lam-case e' ht' with all-HT {γ = extendγ γ e'} e (extendHTΓ η ht')
-          ... | ht with eval-step (step-beta {e = (ssubst (liftγ γ) e)})
-          ... | steps-full with combine-subst-noob γ e e'
-          ... | eq = head-expansion steps-full (ID.coe1 (HT B) eq ht)
-
-  all-HT {Γ} {A} {γ} (rec e e₀ es) η = inner (all-HT e η)
-    where inner : {e : TNat} → HTω e → HT A (rec e (ssubst γ e₀) (ssubst (liftγ γ) es))
-          inner (HT-z E) with eval-trans (eval-rec {es = (ssubst (liftγ γ) es)} E)
-                              (eval-step step-rec-z)
-          ... | steps-full = head-expansion steps-full (all-HT e₀ η)
-          inner {e} (HT-s E ht') with all-HT {γ = extendγ γ _} es (extendHTΓ η (inner ht'))
-          ... | ht with eval-trans (eval-rec {e₀ = (ssubst γ e₀)} E) (eval-step step-rec-s)
-          ... | steps-full with combine-subst-noob γ es _
-          ... | eq = head-expansion steps-full (ID.coe1 (HT _) eq ht)
-
-  -- Prove that all programs in Gödel's System T halt.
-  all-halt : ∀{A} → (e : TCExp A) → THalts e
-  all-halt {A} e = HT-halts e (ID.coe1 (HT A) (subid e) (all-HT e (emptyHTΓ {emptyγ})))
-
-  ---- some example programs
-  -- boy, de bruijn indexes are unreadable
-  bs-subst : ∀{Γ} → TRen [] Γ
-  bs-subst ()
-
-  w : ∀{Γ B} → TCExp B → TExp Γ B
-  w e = ren bs-subst e
-
-  one : TNat
-  one = suc zero
-  two = suc one
-  three = suc two
-  t-plus : TCExp (nat ⇒ nat ⇒ nat)
-  t-plus = Λ (Λ (rec (var (S Z)) (var Z) (suc (var Z))))
-  t-compose : ∀{A B C} → TCExp ((A ⇒ B) ⇒ (C ⇒ A) ⇒ (C ⇒ B))
-  t-compose = Λ (Λ (Λ (var (S (S Z)) $ ((var (S Z)) $ (var Z)))))
-  t-id : ∀{A} → TCExp (A ⇒ A)
-  t-id = Λ (var Z)
-  t-iterate : ∀{A} → TCExp (nat ⇒ (A ⇒ A) ⇒ (A ⇒ A))
-  t-iterate = Λ (Λ (rec (var (S Z)) (w t-id)
-                     (w t-compose $ var (S Z) $ var Z)))
-  t-ack : TCExp (nat ⇒ nat ⇒ nat)
-  t-ack = Λ (rec (var Z) (Λ (suc (var Z)))
-              (Λ (w t-iterate $ var Z $ var (S Z) $ (var (S Z) $ w one))))
-  ack-test : TNat
-  ack-test = t-ack $ two $ two
-  plus-test : TNat
-  plus-test = t-plus $ two $ two
 
 open GÖDEL-T public
