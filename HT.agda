@@ -55,7 +55,7 @@ module HT where
               HTΓ Γ γ -> HT A e -> HTΓ (A :: Γ) (extendγ γ e)
   extendHTΓ η ht Z = ht
   extendHTΓ {_} {_} {e} {γ} η ht {B} (S n) = 
-             ID.coe1 (λ x → HT B x) (symm (extend-nofail-s γ e n)) (η n)
+             ID.coe1 (HT B) (symm (extend-nofail-s γ e n)) (η n)
 
   -- head expansion lemma
   head-expansion : ∀{A} {e e' : TCExp A} → (e ~>* e') → HT A e' → HT A e
