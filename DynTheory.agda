@@ -14,7 +14,7 @@ module DynTheory where
   eval-trans eval-refl E2 = E2
   eval-trans (eval-cons S1 E1') E2 = eval-cons S1 (eval-trans E1' E2)
 
-  -- prove that we can life any compatibility rule from steps to eval
+  -- prove that we can lift any compatibility rule from steps to eval
   eval-compat : ∀{A B} {P : TCExp A -> TCExp B} →
                  (∀{e e'} → (e ~> e' → P e ~> P e')) →
                  {e e' : TCExp A} → e ~>* e' → P e ~>* P e'
