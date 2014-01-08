@@ -9,7 +9,7 @@ bs-subst : ∀{Γ} → TRen [] Γ
 bs-subst ()
 
 w : ∀{Γ B} → TCExp B → TExp Γ B
-w e = ren bsRename e
+w e = ren bs-subst e
 
 one : TNat
 one = suc zero

@@ -9,7 +9,7 @@
 -- The first reply to the post linked above presents a refinement that
 -- avoids these problems, but at the cost of moving weakening into
 -- every substitution function, where we can't reason about it.
--- The vast majority of my time spent on this proof was fighting with
+-- The vast majority of my time spent on this proof was fighting with 
 -- substitutions so that I could prove combine-subst-noob.
 
 -- This uses an intrinsic representation, where the typing derivation
@@ -20,7 +20,7 @@
 -- The dynamic semantics are non-deterministic and call-by-name. This
 -- made the HT proof easier.
 
--- Some inspiration taken from
+-- Some inspiration taken from 
 -- https://github.com/robsimmons/agda-lib/blob/pattern-0/GoedelT.agda
 
 -- This relies on Rob Simmons' alternate Agda standard library:
@@ -33,10 +33,10 @@
 -- Source tree overview:
 --  T.agda: this file; contains the syntax (and intrinstically the
 --          static semantics), denotational semantics, definition of
---          substitution (and intrinstically the substitution lemma),
+--          substitution (and intrinstically the substitution lemma), 
 --          and dynamic semantics (intrinstically preservation).
 --  Progress.agda: statement and proof of progress
---  SubstTheory.agda: a bunch of theorems about substitution and
+--  SubstTheory.agda: a bunch of theorems about substitution and 
 --                    renaming that are needed for the HT proof
 --  DynTheory.agda: some simple lemmas about the dynamic semantics
 --  HT.agda: proof of hereditary termination
@@ -108,9 +108,6 @@ module GÖDEL-T where
 
   renId : ∀{Γ} → TRen Γ Γ
   renId = \ x -> x
-
-  bsRename : ∀{Γ} → TRen [] Γ
-  bsRename ()
 
   renComp : ∀{B Γ Δ} → TRen Γ Δ → TRen B Γ → TRen B Δ
   renComp f g = f o g
