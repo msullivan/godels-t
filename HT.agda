@@ -13,6 +13,29 @@ module HT where
   data THalts : ∀{A} → TCExp A → Set where
     halts : {A : TTp} {e e' : TCExp A} → (eval : (e ~>* e')) → (val : TVal e') → THalts e
 
+  -- An old comment about lhs-halt
+
+  -- Mostly for fun, I didn't want to include "and it halts" as part
+  -- of the definition of HT for arrows, and I didn't want to define
+  -- it in terms of evaluating to a lambda and then substituting.
+  -- This seems to require being able to generate an inhabitant of an
+  -- arbitrary type as well as a proof that it is HT. The former is
+  -- easy in T and we accomplish the latter by appealing to all-HT,
+  -- although we could have also generated the proof along with the
+  -- inhabitant.  This all seems to be handwaved away when doing it on
+  -- paper. Things get more unclear when in a system where not all
+  -- types are inhabited; if we know that either a type is inhabited or
+  -- it is not, then we are fine. But since we are constructive, we would
+  -- get tripped up by a language like System F in which type inhabitability
+  -- is undecidable. (Of course, the proof is easy to repair in a number of
+  -- ways by modifying the definition of HT.)
+  --
+  -- When I went to make the system deterministic, I found that I now depended
+  -- on HT-halts in all-HT, which broke the previous proof technique.
+  -- I decided that proving the inhabitant we construct is HT would be
+  -- annoying, so I decided to not bother and went back to hanging onto the
+  -- proof that arrows halt.
+
   -- Extract that the lhs must halt if its application to something halts.
   -- I think this isn't actually useful, though, since to use it we would
   -- need to be able to produce an argument to the function.
@@ -54,7 +77,7 @@ module HT where
   extendHTΓ : ∀{Γ A} {e : TCExp A} {γ : TSubst Γ []} ->
               HTΓ Γ γ -> HT A e -> HTΓ (A :: Γ) (extendγ γ e)
   extendHTΓ η ht Z = ht
-  extendHTΓ {_} {_} {e} {γ} η ht {B} (S n) = 
+  extendHTΓ {_} {_} {e} {γ} η ht {B} (S n) =
              ID.coe1 (HT B) (symm (extend-nofail-s γ e n)) (η n)
 
   -- head expansion lemma
