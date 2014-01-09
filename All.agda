@@ -7,3 +7,4 @@ open import DynTheory
 open import Progress
 open import HT
 open import Examples
+open import Eq
