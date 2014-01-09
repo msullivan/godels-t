@@ -56,17 +56,24 @@ module DynTheory where
   step-deterministic (rec zero _ _) step-rec-z step-rec-z = Refl
   step-deterministic (rec (suc e) e₁ e₂) (step-rec-s x) (step-rec-s x₁) = Refl
 
+  -- Prove that if we evaluate to two expressions, and one is a value,
+  -- then the other evaluates to it.
+  eval-finish : ∀{A} → {e : TCExp A} → {e' e'' : TCExp A} →
+                e ~>* e' → e ~>* e'' →
+                TVal e'' →
+                e' ~>* e''
+  eval-finish eval-refl E2 v = E2
+  eval-finish (eval-cons S1 E1) eval-refl v = not-val-and-step v S1
+  eval-finish (eval-cons S1 E1) (eval-cons S2 E2) v with step-deterministic _ S1 S2
+  ... | Refl = eval-finish E1 E2 v
+
   -- Prove that if we evaluate to two values, they are the same
   eval-deterministic : ∀{A} → {e : TCExp A} → {e' e'' : TCExp A} →
                        e ~>* e' → e ~>* e'' →
                        TVal e' → TVal e'' →
                        e' ≡ e''
-  eval-deterministic eval-refl eval-refl v1 v2 = Refl
-  eval-deterministic eval-refl (eval-cons S2 E2) v1 v2 = not-val-and-step v1 S2
-  eval-deterministic (eval-cons S1 E1) eval-refl v1 v2 = not-val-and-step v2 S1
-  eval-deterministic (eval-cons S1 E1) (eval-cons S2 E2) v1 v2 with step-deterministic _ S1 S2
-  ... | Refl = eval-deterministic E1 E2 v1 v2
-
-
+  eval-deterministic E1 E2 v1 v2 with eval-finish E1 E2 v2
+  ... | eval-refl = Refl
+  ... | eval-cons S1 _ = not-val-and-step v1 S1
 
 open DynTheory public
