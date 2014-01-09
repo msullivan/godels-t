@@ -32,6 +32,7 @@ module Eq where
 
 
   -- Kleene equivalence
+  -- I feel like doing this with numerals has not improved my life.
   t-numeral : Nat → TNat
   t-numeral Z = zero
   t-numeral (S n) = suc (t-numeral n)
@@ -80,19 +81,21 @@ module Eq where
   ObservEq Γ A e e' = ∀(C : PCtx Γ A) → C < e > ≃ C < e' >
 
   syntax ObservEq Γ A e e' = Γ ⊢ e ≅ e' :: A
---  _⊢_≅_:_ (e e' : TNat) → Set
 
   ---- Proofs about observational equivalence
 
   -- observational equivalence being an equiv reln follows trivially from kleene equiv being one
-  obs-refl : ∀ {Γ} {A} {e : TExp Γ A} → (Γ ⊢ e ≅ e :: A)
+  obs-refl : ∀ {Γ} {A} → Reflexive (ObservEq Γ A)
   obs-refl C = kleene-refl
-  obs-sym : ∀ {Γ} {A} {e e' : TExp Γ A} → (Γ ⊢ e ≅ e' :: A) → (Γ ⊢ e' ≅ e :: A)
+  obs-sym : ∀ {Γ} {A} → Symmetric (ObservEq Γ A)
   obs-sym eq C = kleene-sym (eq C)
-  obs-trans : ∀ {Γ} {A} {e e' e'' : TExp Γ A} →
-              (Γ ⊢ e ≅ e' :: A) → (Γ ⊢ e' ≅ e'' :: A) →
-              (Γ ⊢ e ≅ e'' :: A)
+  obs-trans : ∀ {Γ} {A} → Transitive (ObservEq Γ A)
   obs-trans eq1 eq2 C = kleene-trans (eq1 C) (eq2 C)
+
+  obs-is-equivalence : ∀{Γ} {A} → IsEquivalence (ObservEq Γ A)
+  obs-is-equivalence = record { refl_ = obs-refl
+                              ; sym_ = obs-sym
+                              ; trans_ = obs-trans }
 
   ---- Logical equivalence
   LogicalEq : (A : TTp) → TCExp A → TCExp A → Set
@@ -103,12 +106,12 @@ module Eq where
   syntax LogicalEq A e e' = e ~ e' :: A
 
 
-  logical-sym : ∀{A} {e e' : TCExp A} → e ~ e' :: A → e' ~ e :: A
+  logical-sym : ∀{A} → Symmetric (LogicalEq A)
   logical-sym {nat} (n , fst , snd) = n , (snd , fst)
   logical-sym {A ⇒ B} equiv = λ e₁ e₁' x → logical-sym {B}
                                             (equiv e₁' e₁ (logical-sym {A} x))
 
-  logical-trans : ∀{A} {e e' e'' : TCExp A} → e ~ e' :: A → e' ~ e'' :: A → e ~ e'' :: A
+  logical-trans : ∀{A} → Transitive (LogicalEq A)
   logical-trans {nat} eq1 eq2 = kleene-trans eq1 eq2
   logical-trans {A ⇒ B} {e} {e'} {e''} eq1 eq2 =
      λ e₁ e₁' x → logical-trans (eq1 e₁ e₁ (logical-trans x (logical-sym x))) (eq2 e₁ e₁' x)
