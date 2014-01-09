@@ -169,8 +169,8 @@ module GÖDEL-T where
     val-lam : ∀{A B} {e : TExp (A :: []) B} → TVal (Λ e)
 
   -- only worry about closed steps; embed preservation in the statement
-  -- the evaluation semantics are non-deterministic;
-  -- we could get rid of step-app-r, step-suc
+  -- We are call-by-name for function application, but call-by-value for natural evaluation.
+  -- This is so that any value of type nat is a numeral.
   data _~>_ : ∀{A} → TCExp A → TCExp A → Set where
     step-app-l : ∀{A B} {e₁ e₁' : TCExp (A ⇒ B)} {e₂ : TCExp A} →
                   e₁ ~> e₁' → (e₁ $ e₂) ~> (e₁' $ e₂)
