@@ -109,8 +109,7 @@ module Eq where
 
   obs-congruence : Congruence ObservEq
   obs-congruence {e = e} {e' = e'} oeq C C' with oeq (C' << C >>)
-  ... | keq with ID.coe1 (λ x → KleeneEq x ((C' << C >>) < e' >)) (composing-commutes C' C e) keq
-  ... | keq' = ID.coe1 (KleeneEq (C' < C < e > >)) (composing-commutes C' C e') keq'
+  ... | keq = ID.coe2 KleeneEq (composing-commutes C' C e) (composing-commutes C' C e') keq
 
   obs-consistent : Consistent ObservEq
   obs-consistent oeq = oeq ∘
@@ -150,3 +149,28 @@ module Eq where
   logical-trans {nat} eq1 eq2 = kleene-trans eq1 eq2
   logical-trans {A ⇒ B} {e} {e'} {e''} eq1 eq2 =
      λ e₁ e₁' x → logical-trans (eq1 e₁ e₁ (logical-trans x (logical-sym x))) (eq2 e₁ e₁' x)
+
+
+  -- Start towards open logical equiv
+
+  -- extend equiv to substitutions
+  LogicalEqΓ : (Γ : Ctx) → TSubst Γ [] → TSubst Γ [] → Set
+  LogicalEqΓ Γ γ γ' = ∀{A} (x : A ∈ Γ) → (γ x ~ γ' x :: A)
+
+  emptyLogicalEqΓ : ∀{γ γ' : TSubst [] []} -> LogicalEqΓ [] γ γ'
+  emptyLogicalEqΓ ()
+
+  extendLogicalEQΓ : ∀{Γ A} {e e' : TCExp A} {γ γ' : TSubst Γ []} →
+                     LogicalEqΓ Γ γ γ' → e ~ e' :: A →
+                     LogicalEqΓ (A :: Γ) (extendγ γ e) (extendγ γ' e')
+  extendLogicalEQΓ η eq Z = eq
+  extendLogicalEQΓ {_} {_} {e} {e'} {γ} {γ'} η eq (S n) with η n
+  ... | xeq = ID.coe2 (LogicalEq _) (extend-nofail-s γ e n) (extend-nofail-s γ' e' n) xeq
+
+
+  ---- Open logical equivalence
+  OLogicalEq : TRel
+  OLogicalEq Γ A e e' = ∀{γ γ' : TSubst Γ []} → LogicalEqΓ Γ γ γ' →
+                        (ssubst γ e) ~ (ssubst γ' e') :: A
+
+  syntax OLogicalEq Γ A e e' = Γ ⊢ e ~ e' :: A

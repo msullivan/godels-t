@@ -85,13 +85,13 @@ module SubstTheory where
   rensub : ∀{B Γ Δ}(f : TRen Γ Δ)(g : TSubst B Γ){A}(e : TExp B A) →
           (ren f o ssubst g) e ≡ ssubst (ren f o g) e
   rensub f g (var x) = Refl
-  rensub f g (Λ e) = resp Λ ((rensub (wk f) (liftγ g) e) ≡≡ 
+  rensub f g (Λ e) = resp Λ ((rensub (wk f) (liftγ g) e) ≡≡
                              subeq (renwklift f g) e)
   rensub f g (e₁ $ e₂) = resp2 _$_ (rensub f g e₁) (rensub f g e₂)
   rensub f g zero = Refl
   rensub f g (suc e) = resp suc (rensub f g e)
   rensub f g (rec e e₀ es) = resp3 rec (rensub f g e) (rensub f g e₀)
-                              ((rensub (wk f) (liftγ g) es) ≡≡ 
+                              ((rensub (wk f) (liftγ g) es) ≡≡
                                subeq (renwklift f g) es)
 
   liftwk : ∀{K Γ Δ C}(f : TSubst Γ Δ)(g : TRen K Γ){A}(x : A ∈ (C :: K)) →
@@ -102,13 +102,13 @@ module SubstTheory where
   subren : ∀{B Γ Δ}(f : TSubst Γ Δ)(g : TRen B Γ){A}(e : TExp B A) →
           (ssubst f o ren g) e ≡ ssubst (f o g) e
   subren f g (var x) = Refl
-  subren f g (Λ e) = resp Λ ((subren (liftγ f) (wk g) e) ≡≡ 
+  subren f g (Λ e) = resp Λ ((subren (liftγ f) (wk g) e) ≡≡
                              subeq (liftwk f g) e)
   subren f g (e₁ $ e₂) = resp2 _$_ (subren f g e₁) (subren f g e₂)
   subren f g zero = Refl
   subren f g (suc e) = resp suc (subren f g e)
   subren f g (rec e e₀ es) = resp3 rec (subren f g e) (subren f g e₀)
-                             ((subren (liftγ f) (wk g) es) ≡≡ 
+                             ((subren (liftγ f) (wk g) es) ≡≡
                               subeq (liftwk f g) es)
 
   -- first monad law, the second holds definitionally
@@ -155,7 +155,7 @@ module SubstTheory where
   combine-subst-noob γ e e' = subcomp (singγ e') (liftγ γ) e
 
   extend-nofail-s : ∀{Γ Γ' A B} → (γ : TSubst Γ Γ') → (e : TExp Γ' A) → (n : B ∈ Γ) →
-                    (extendγ γ e) (S n) ≡ γ n
-  extend-nofail-s γ e n = subren (singγ e) S (γ n) ≡≡ subid (γ n)
+                    γ n ≡ (extendγ γ e) (S n)
+  extend-nofail-s γ e n = symm (subren (singγ e) S (γ n) ≡≡ subid (γ n))
 
 open SubstTheory public
