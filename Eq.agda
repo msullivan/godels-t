@@ -30,6 +30,13 @@ module Eq where
 
   TRel = (Γ : Ctx) (A : TTp) → Rel (TExp Γ A)
 
+  -- Specific relation stuff about T
+  Congruence : TRel → Set
+  Congruence R = ∀{Γ} {A} {e e' : TExp Γ A} →
+                 R Γ A e e' →
+                 {Γ' : Ctx} {A' : TTp} → (C : TCtx Γ A Γ' A') →
+                 R Γ' A' (C < e >) (C < e' >)
+
 
   -- Kleene equivalence
   -- I feel like doing this with numerals has not improved my life.
@@ -37,6 +44,12 @@ module Eq where
   t-numeral Z = zero
   t-numeral (S n) = suc (t-numeral n)
 
+  _≃_ : (e e' : TNat) → Set
+  e ≃ e' = Σ[ n :: Nat ] (e ~>* t-numeral n) × (e' ~>* t-numeral n)
+
+  KleeneEq = _≃_
+
+  -- Theory about Kleene equality
   numeral-val : (n : Nat) → TVal (t-numeral n)
   numeral-val Z = val-zero
   numeral-val (S n) = val-suc (numeral-val n)
@@ -46,11 +59,6 @@ module Eq where
   val-numeral (val-suc v) with val-numeral v
   ... | n , eq = (S n) , (resp suc eq)
 
-
-  _≃_ : (e e' : TNat) → Set
-  e ≃ e' = Σ[ n :: Nat ] (e ~>* t-numeral n) × (e' ~>* t-numeral n)
-
-  KleeneEq = _≃_
 
   -- Harper says that kleene equality is "evidently reflexive",
   -- but this requires termination!
@@ -96,6 +104,9 @@ module Eq where
   obs-is-equivalence = record { refl_ = obs-refl
                               ; sym_ = obs-sym
                               ; trans_ = obs-trans }
+
+  obs-congruence : Congruence ObservEq
+  obs-congruence = {!!}
 
   ---- Logical equivalence
   LogicalEq : (A : TTp) → TCExp A → TCExp A → Set
