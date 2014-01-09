@@ -95,7 +95,9 @@ module Eq where
                               ; trans_ = obs-trans }
 
   obs-congruence : Congruence ObservEq
-  obs-congruence = {!!}
+  obs-congruence {e = e} {e' = e'} oeq C C' with oeq (C' << C >>)
+  ... | keq with ID.coe1 (λ x → KleeneEq x ((C' << C >>) < e' >)) (composing-commutes C' C e) keq
+  ... | keq' = ID.coe1 (KleeneEq (C' < C < e > >)) (composing-commutes C' C e') keq'
 
   ---- Logical equivalence
   LogicalEq : (A : TTp) → TCExp A → TCExp A → Set

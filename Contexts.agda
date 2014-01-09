@@ -42,6 +42,20 @@ module Contexts where
   rec3 e e₀ Cs << C' >> = rec3 e e₀ (Cs << C' >>)
 
 
+  -- I hate having to prove this sort of theorem.
+  composing-commutes : ∀{Γ A Γ' A' Γ'' A''} →
+                       (C : TCtx Γ' A' Γ'' A'') →
+                       (C' : TCtx Γ A Γ' A') →
+                       (e : TExp Γ A) →
+                       ((C << C' >>) < e >) ≡ C < C' < e > >
+  composing-commutes ∘ C' e = Refl
+  composing-commutes (e₁ e$ C) C' e = resp (_$_ e₁) (composing-commutes C C' e)
+  composing-commutes (C $e e₂) C' e = resp (λ x → x $ e₂) (composing-commutes C C' e)
+  composing-commutes (Λ C) C' e = resp Λ (composing-commutes C C' e)
+  composing-commutes (suc C) C' e = resp suc (composing-commutes C C' e)
+  composing-commutes (rec1 C e₀ es) C' e = resp (λ x → rec x e₀ es) (composing-commutes C C' e)
+  composing-commutes (rec2 e' C es) C' e = resp (λ x → rec e' x es) (composing-commutes C C' e)
+  composing-commutes (rec3 e' e₀ C) C' e = resp (λ x → rec e' e₀ x) (composing-commutes C C' e)
 
 
 open Contexts public
