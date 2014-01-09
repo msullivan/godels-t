@@ -20,6 +20,9 @@ module Eq where
   Transitive : ∀{A} → Rel A → Set
   Transitive R = ∀{x y z} → R x y → R y z → R x z
 
+  _⊆_ : ∀{A} → Rel A → Rel A → Set
+  P ⊆ Q = ∀{x y} → P x y → Q x y
+  Includes = _⊆_
 
   record IsEquivalence {A : Set}
                        (R : Rel A) : Set  where
@@ -117,6 +120,17 @@ module Eq where
                                  ; cong = obs-congruence
                                  ; consistent = obs-consistent
                                  }
+
+  -- Prove that observational equivalence is the coarsest consistent congruence.
+  -- That is, that it contains all other consistent congruences.
+  -- That is, if two terms are related by a consistent congruence, they are
+  -- observationally equivalence.
+  obs-is-coarsest : (R : TRel) → IsConsistentCongruence R →
+                    {Γ : Ctx} {A : TTp} →
+                    (R Γ A) ⊆ (ObservEq Γ A)
+  obs-is-coarsest R isCC eq C with (IsConsistentCongruence.cong isCC) eq C
+  ... | eqC = (IsConsistentCongruence.consistent isCC) eqC
+
 
   ---- Logical equivalence
   LogicalEq : (A : TTp) → TCExp A → TCExp A → Set
