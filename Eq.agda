@@ -37,7 +37,6 @@ module Eq where
                  {Γ' : Ctx} {A' : TTp} → (C : TCtx Γ A Γ' A') →
                  R Γ' A' (C < e >) (C < e' >)
 
-
   -- Kleene equivalence
   record KleeneEq (e e' : TNat) : Set where
     constructor kleeneq
@@ -49,9 +48,20 @@ module Eq where
 
   _≃_ = KleeneEq
 
+  -- Definition of consistency
+  Consistent : TRel → Set
+  Consistent R = ∀ {e e' : TNat} → R [] nat e e' → e ≃ e'
+
+  record IsConsistentCongruence (R : TRel) : Set where
+    field
+      equiv : ∀{Γ A} → IsEquivalence (R Γ A)
+      cong : Congruence R
+      consistent : Consistent R
+
+
   -- Theory about Kleene equality
 
-  -- Harper says that kleene equality is "evidently reflexive",
+  -- Harper says that Kleene equality is "evidently reflexive",
   -- but this requires termination!
   kleene-refl : Reflexive KleeneEq
   kleene-refl {e} with all-halt e
@@ -98,6 +108,15 @@ module Eq where
   obs-congruence {e = e} {e' = e'} oeq C C' with oeq (C' << C >>)
   ... | keq with ID.coe1 (λ x → KleeneEq x ((C' << C >>) < e' >)) (composing-commutes C' C e) keq
   ... | keq' = ID.coe1 (KleeneEq (C' < C < e > >)) (composing-commutes C' C e') keq'
+
+  obs-consistent : Consistent ObservEq
+  obs-consistent oeq = oeq ∘
+
+  obs-is-con-congruence : IsConsistentCongruence ObservEq
+  obs-is-con-congruence = record { equiv = obs-is-equivalence
+                                 ; cong = obs-congruence
+                                 ; consistent = obs-consistent
+                                 }
 
   ---- Logical equivalence
   LogicalEq : (A : TTp) → TCExp A → TCExp A → Set
