@@ -54,15 +54,13 @@ module HT where
 
   -- definition of hereditary termination
   HT : (A : TTp) → TCExp A → Set
-  HT nat e = HTω e
+  HT nat e = THalts e
   -- It is kind of ugly to have to hang on to the halting proof.
   HT (A ⇒ B) e = THalts e × ((e' : TCExp A) → HT A e' → HT B (e $ e'))
 
   -- proof that hereditary termination implies termination
   HT-halts : ∀{A} → (e : TCExp A) → HT A e → THalts e
-  HT-halts {nat} e (HT-z E) = halts E val-zero
-  HT-halts {nat} e (HT-s {.e} {e'} E HT) with HT-halts e' HT
-  ... | halts eval val = halts (eval-trans E (eval-compat step-suc eval)) (val-suc val)
+  HT-halts {nat} e h = h
   HT-halts {A ⇒ B} _ (h , _) = h
 
 
@@ -81,8 +79,7 @@ module HT where
 
   -- head expansion lemma
   head-expansion : ∀{A} {e e' : TCExp A} → (e ~>* e') → HT A e' → HT A e
-  head-expansion {nat} eval (HT-z E) = HT-z (eval-trans eval E)
-  head-expansion {nat} eval (HT-s E HT) = HT-s (eval-trans eval E) HT
+  head-expansion {nat} eval (halts eval₁ val) = halts (eval-trans eval eval₁) val
   head-expansion {A ⇒ B} eval (halts eval' val , ht-logic) =
      halts (eval-trans eval eval') val ,
      (λ e' ht → head-expansion (eval-compat step-app-l eval) (ht-logic e' ht))
@@ -93,8 +90,9 @@ module HT where
   all-HT (var x) η = η x
   all-HT (e₁ $ e₂) η with all-HT e₁ η
   ... | _ , HT₁ = HT₁ (ssubst _ e₂) (all-HT e₂ η)
-  all-HT zero η = HT-z eval-refl
-  all-HT (suc e) η = HT-s eval-refl (all-HT e η)
+  all-HT zero η = halts eval-refl val-zero
+  all-HT (suc e) η with all-HT e η
+  ... | halts eval val = halts (eval-compat step-suc eval) (val-suc val)
 
   all-HT {Γ} {A ⇒ B} {γ} (Λ e) η =
     (halts eval-refl val-lam) ,
@@ -105,16 +103,14 @@ module HT where
           ... | steps-full with combine-subst-noob γ e e'
           ... | eq = head-expansion steps-full (ID.coe1 (HT B) eq ht)
 
-  all-HT {Γ} {A} {γ} (rec e e₀ es) η = inner (all-HT e η)
-    where inner : {e : TNat} → HTω e → HT A (rec e (ssubst γ e₀) (ssubst (liftγ γ) es))
-          inner (HT-z E) with eval-trans (eval-compat (step-rec {es = (ssubst (liftγ γ) es)}) E)
-                              (eval-step step-rec-z)
-          ... | steps-full = head-expansion steps-full (all-HT e₀ η)
-          inner {e} (HT-s E ht') with all-HT {γ = extendγ γ _} es (extendHTΓ η (inner ht'))
-          ... | ht with eval-trans (eval-compat (step-rec {e₀ = (ssubst γ e₀)}) E)
-                                   (eval-step step-rec-s)
-          ... | steps-full with combine-subst-noob γ es _
-          ... | eq = head-expansion steps-full (ID.coe1 (HT _) eq ht)
+  all-HT {Γ} {A} {γ} (rec e e₀ es) η with all-HT e η
+  ... | halts E val = head-expansion (eval-compat step-rec E) (inner val)
+    where inner : {n : TNat} → TVal n → HT A (rec n (ssubst γ e₀) (ssubst (liftγ γ) es))
+          inner val-zero = head-expansion (eval-step step-rec-z) (all-HT e₀ η)
+          inner (val-suc v) with all-HT es (extendHTΓ η (inner v))
+          ... | ht with eval-step (step-rec-s v)
+          ... | steps with combine-subst-noob γ es _
+          ... | eq = head-expansion steps (ID.coe1 (HT A) eq ht)
 
   -- Prove that all programs in Gödel's System T halt.
   all-halt : ∀{A} → (e : TCExp A) → THalts e

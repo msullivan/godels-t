@@ -183,7 +183,7 @@ module GÖDEL-T where
     step-rec-z : ∀{A} {e₀ : TCExp A} {es : TExp (A :: []) A} →
                   (rec zero e₀ es) ~> e₀
     step-rec-s : ∀{A} {e : TCExp nat} {e₀ : TCExp A} {es : TExp (A :: []) A} →
-                  (rec (suc e) e₀ es) ~> subst (rec e e₀ es) es
+                  TVal e → (rec (suc e) e₀ es) ~> subst (rec e e₀ es) es
 
   -- iterated stepping
   data _~>*_ : ∀{A} → TCExp A → TCExp A → Set where

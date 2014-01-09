@@ -84,8 +84,6 @@ module DenotCommutes where
   meaning-steps : ∀{A}{e e' : TCExp A} → (e ~> e') → cmeaning e ≡ cmeaning e'
   meaning-steps {e = e₁ $ e₂} (step-app-l St) =
          resp (λ f → f (meaning e₂ emptyη)) (meaning-steps St)
-  meaning-steps {e = e₁ $ e₂} (step-app-r St) =
-         resp (λ x → meaning e₁ emptyη x) (meaning-steps St)
   meaning-steps {e = (Λ e₁) $ e₂} step-beta = meaning-subst' e₂ e₁
   meaning-steps (step-suc St) = resp S (meaning-steps St)
   meaning-steps {e = rec e e₀ es} (step-rec St) =
@@ -93,7 +91,7 @@ module DenotCommutes where
                         (λ n x → meaning es (extendη emptyη x)) e')
               (meaning-steps St)
   meaning-steps step-rec-z = Refl
-  meaning-steps {e = rec (suc e) e₀ es} step-rec-s = meaning-subst' (rec e e₀ es) es
+  meaning-steps {e = rec (suc e) e₀ es} (step-rec-s _) = meaning-subst' (rec e e₀ es) es
 
 
 open DenotCommutes public
