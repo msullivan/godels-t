@@ -4,10 +4,34 @@ open import Prelude
 open import T
 open import SubstTheory
 open import DynTheory
-
+open import HT
+open import Contexts
 
 module Eq where
 
+  -- General stuff about relations
+  Rel : Set → Set1
+  Rel A = A → A → Set
+
+  Reflexive : ∀{A} → Rel A → Set
+  Reflexive R = ∀{x} → R x x
+  Symmetric : ∀{A} → Rel A → Set
+  Symmetric R = ∀{x y} → R x y → R y x
+  Transitive : ∀{A} → Rel A → Set
+  Transitive R = ∀{x y z} → R x y → R y z → R x z
+
+
+  record IsEquivalence {A : Set}
+                       (R : Rel A) : Set  where
+    field
+      refl_  : Reflexive R
+      sym_   : Symmetric R
+      trans_ : Transitive R
+
+  TRel = (Γ : Ctx) (A : TTp) → Rel (TExp Γ A)
+
+
+  -- Kleene equivalence
   t-numeral : Nat → TNat
   t-numeral Z = zero
   t-numeral (S n) = suc (t-numeral n)
@@ -16,58 +40,61 @@ module Eq where
   numeral-val Z = val-zero
   numeral-val (S n) = val-suc (numeral-val n)
 
+  val-numeral : ∀{e : TNat} → TVal e → Σ[ n :: Nat ] (e ≡ t-numeral n)
+  val-numeral val-zero = Z , Refl
+  val-numeral (val-suc v) with val-numeral v
+  ... | n , eq = (S n) , (resp suc eq)
+
+
   _≃_ : (e e' : TNat) → Set
   e ≃ e' = Σ[ n :: Nat ] (e ~>* t-numeral n) × (e' ~>* t-numeral n)
 
   KleeneEq = _≃_
 
-  data TCtx (Γ : Ctx) (A : TTp) : Ctx → TTp → Set where
-    ∘ : TCtx Γ A Γ A
-    _e$_ : ∀{Γ' A' B} (e₁ : TExp Γ' (A' ⇒ B)) (C₂ : TCtx Γ A Γ' A') → TCtx Γ A Γ' B
-    _$e_ : ∀{Γ' A' B} (C₁ : TCtx Γ A Γ' (A' ⇒ B)) (e₂ : TExp Γ' A') → TCtx Γ A Γ' B
+  -- Harper says that kleene equality is "evidently reflexive",
+  -- but this requires termination!
+  kleene-refl : Reflexive KleeneEq
+  kleene-refl {e} with all-halt e
+  ... | halts eval val with val-numeral val
+  ... | n , eq = n , (ID.coe1 (_~>*_ e) eq eval) , ID.coe1 (_~>*_ e) eq eval
 
-    Λ : ∀{A₁ A₂ Γ'} (C : TCtx Γ A (A₁ :: Γ') A₂) → TCtx Γ A Γ' (A₁ ⇒ A₂)
-    suc : ∀{Γ'} (C : TCtx Γ A Γ' nat) → TCtx Γ A Γ' nat
+  kleene-sym : Symmetric KleeneEq
+  kleene-sym (n , E1 , E2) = n , E2 , E1
 
-    rec1 : ∀{Γ' B} → (C : TCtx Γ A Γ' nat) → (e₀ : TExp Γ' B) → (es : TExp (B :: Γ') B) →
-                     TCtx Γ A Γ' B
-    rec2 : ∀{Γ' B} → (e : TExp Γ' nat) → (C₀ : TCtx Γ A Γ' B) → (es : TExp (B :: Γ') B) →
-                     TCtx Γ A Γ' B
-    rec3 : ∀{Γ' B} → (e : TExp Γ' nat) → (e₀ : TExp Γ' B) → (Cs : TCtx Γ A (B :: Γ') B) →
-                     TCtx Γ A Γ' B
+  kleene-trans : Transitive KleeneEq
+  kleene-trans {z = e''} (n , e-eval , e'-eval) (n' , e'-eval2 , e''-eval)
+     with eval-deterministic e'-eval e'-eval2 (numeral-val n) (numeral-val n')
+  ... | eq = n , (e-eval , ID.coe1 (λ x → e'' ~>* x) (symm eq) e''-eval)
 
-  _<_> : ∀{Γ A Γ' A'} → TCtx Γ A Γ' A' → TExp Γ A → TExp Γ' A'
-  ∘ < e' > = e'
-  (e₁ e$ C₂) < e' > = e₁ $ C₂ < e' >
-  (C₁ $e e₂) < e' > = C₁ < e' > $ e₂
-  Λ C < e' > = Λ (C < e' >)
-  suc C < e' > = suc (C < e' >)
-  rec1 C e₀ es < e' > = rec (C < e' >) e₀ es
-  rec2 e C₀ es < e' > = rec e (C₀ < e' >) es
-  rec3 e e₀ Cs < e' > = rec e e₀ (Cs < e' >)
+  kleene-is-equivalence : IsEquivalence KleeneEq
+  kleene-is-equivalence = record { refl_ = kleene-refl
+                                 ; sym_ = kleene-sym
+                                 ; trans_ = kleene-trans }
 
-  _<<_>> : ∀{Γ A Γ' A' Γ'' A''} → TCtx Γ' A' Γ'' A'' → TCtx Γ A Γ' A' →
-            TCtx Γ A Γ'' A''
-  ∘ << C' >> = C'
-  (e₁ e$ C₂) << C' >> = e₁ e$ C₂ << C' >>
-  (C₁ $e e₂) << C' >> = C₁ << C' >> $e e₂
-  Λ C << C' >> = Λ (C << C' >>)
-  suc C << C' >> = suc (C << C' >>)
-  rec1 C e₀ es << C' >> = rec1 (C << C' >>) e₀ es
-  rec2 e C₀ es << C' >> = rec2 e (C₀ << C' >>) es
-  rec3 e e₀ Cs << C' >> = rec3 e e₀ (Cs << C' >>)
-
-  TReln = (Γ : Ctx) (A : TTp) (e e' : TExp Γ A) → Set
+  -- Observational equivalence
 
   PCtx : (Γ : Ctx) (A : TTp) → Set
   PCtx Γ A = TCtx Γ A [] nat
 
-  ObservEq : TReln
+  ObservEq : TRel
   ObservEq Γ A e e' = ∀(C : PCtx Γ A) → C < e > ≃ C < e' >
 
   syntax ObservEq Γ A e e' = Γ ⊢ e ≅ e' :: A
 --  _⊢_≅_:_ (e e' : TNat) → Set
 
+  ---- Proofs about observational equivalence
+
+  -- observational equivalence being an equiv reln follows trivially from kleene equiv being one
+  obs-refl : ∀ {Γ} {A} {e : TExp Γ A} → (Γ ⊢ e ≅ e :: A)
+  obs-refl C = kleene-refl
+  obs-sym : ∀ {Γ} {A} {e e' : TExp Γ A} → (Γ ⊢ e ≅ e' :: A) → (Γ ⊢ e' ≅ e :: A)
+  obs-sym eq C = kleene-sym (eq C)
+  obs-trans : ∀ {Γ} {A} {e e' e'' : TExp Γ A} →
+              (Γ ⊢ e ≅ e' :: A) → (Γ ⊢ e' ≅ e'' :: A) →
+              (Γ ⊢ e ≅ e'' :: A)
+  obs-trans eq1 eq2 C = kleene-trans (eq1 C) (eq2 C)
+
+  ---- Logical equivalence
   LogicalEq : (A : TTp) → TCExp A → TCExp A → Set
   LogicalEq nat e e' = e ≃ e'
   LogicalEq (A ⇒ B) e e' = (e₁ e₁' : TCExp A) →
@@ -75,17 +102,13 @@ module Eq where
 
   syntax LogicalEq A e e' = e ~ e' :: A
 
-  kleene-trans : ∀ {e e' e'' : TNat} → e ≃ e' → e' ≃ e'' → e ≃ e''
-  kleene-trans {e'' = e''} (n , e-eval , e'-eval) (n' , e'-eval2 , e''-eval)
-     with eval-deterministic e'-eval e'-eval2 (numeral-val n) (numeral-val n')
-  ... | eq = n , (e-eval , ID.coe1 (λ x → e'' ~>* x) (symm eq) e''-eval)
 
-  logical-symm : ∀{A} {e e' : TCExp A} → e ~ e' :: A → e' ~ e :: A
-  logical-symm {nat} (n , fst , snd) = n , (snd , fst)
-  logical-symm {A ⇒ B} equiv = λ e₁ e₁' x → logical-symm {B}
-                                            (equiv e₁' e₁ (logical-symm {A} x))
+  logical-sym : ∀{A} {e e' : TCExp A} → e ~ e' :: A → e' ~ e :: A
+  logical-sym {nat} (n , fst , snd) = n , (snd , fst)
+  logical-sym {A ⇒ B} equiv = λ e₁ e₁' x → logical-sym {B}
+                                            (equiv e₁' e₁ (logical-sym {A} x))
 
   logical-trans : ∀{A} {e e' e'' : TCExp A} → e ~ e' :: A → e' ~ e'' :: A → e ~ e'' :: A
   logical-trans {nat} eq1 eq2 = kleene-trans eq1 eq2
   logical-trans {A ⇒ B} {e} {e'} {e''} eq1 eq2 =
-     λ e₁ e₁' x → logical-trans (eq1 e₁ e₁ (logical-trans x (logical-symm x))) (eq2 e₁ e₁' x)
+     λ e₁ e₁' x → logical-trans (eq1 e₁ e₁ (logical-trans x (logical-sym x))) (eq2 e₁ e₁' x)

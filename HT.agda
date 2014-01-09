@@ -115,3 +115,5 @@ module HT where
   -- Prove that all programs in Gödel's System T halt.
   all-halt : ∀{A} → (e : TCExp A) → THalts e
   all-halt {A} e = HT-halts e (ID.coe1 (HT A) (subid e) (all-HT e (emptyHTΓ {emptyγ})))
+
+open HT public
