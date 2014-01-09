@@ -82,6 +82,11 @@ module Eq where
                                  ; sym_ = kleene-sym
                                  ; trans_ = kleene-trans }
 
+  kleene-converse-evaluation : ∀{e e' d : TNat} →
+                               e ≃ e' → d ~>* e → d ≃ e'
+  kleene-converse-evaluation (kleeneq n val S1 S2) eval =
+    kleeneq n val (eval-trans eval S1) S2
+
   -- Observational equivalence
 
   PCtx : (Γ : Ctx) (A : TTp) → Set
@@ -167,6 +172,10 @@ module Eq where
   extendLogicalEQΓ {_} {_} {e} {e'} {γ} {γ'} η eq (S n) with η n
   ... | xeq = ID.coe2 (LogicalEq _) (extend-nofail-s γ e n) (extend-nofail-s γ' e' n) xeq
 
+  logicalγ-sym : ∀{Γ} → Symmetric (LogicalEqΓ Γ)
+  logicalγ-sym η n = logical-sym (η n)
+  logicalγ-trans : ∀{Γ} → Transitive (LogicalEqΓ Γ)
+  logicalγ-trans η η' n = logical-trans (η n) (η' n)
 
   ---- Open logical equivalence
   OLogicalEq : TRel
@@ -174,3 +183,24 @@ module Eq where
                         (ssubst γ e) ~ (ssubst γ' e') :: A
 
   syntax OLogicalEq Γ A e e' = Γ ⊢ e ~ e' :: A
+
+  ological-sym : ∀{Γ} {A} → Symmetric (OLogicalEq Γ A)
+  ological-sym eq η = logical-sym (eq (logicalγ-sym η))
+
+  -- This uses the trick where, despite not having reflexivity yet,
+  -- we show that some element x is reflexive by using symmetry and
+  -- transitivity on a proof of x ~ y that we have.
+  -- I find this trick hilarious.
+  ological-trans : ∀{Γ} {A} → Transitive (OLogicalEq Γ A)
+  ological-trans eq eq' η = logical-trans (eq η)
+                            (eq' (logicalγ-trans (logicalγ-sym η) η))
+
+
+  logical-converse-evaluation-1 : ∀{A} {e e' d : TCExp A} →
+                                  e ~ e' :: A →
+                                  d ~>* e →
+                                  d ~ e' :: A
+  logical-converse-evaluation-1 {nat} eq eval = kleene-converse-evaluation eq eval
+  logical-converse-evaluation-1 {A ⇒ B} eq eval =
+    λ e₁ e₁' x → logical-converse-evaluation-1 (eq e₁ e₁' x)
+                 (eval-compat step-app-l eval)
