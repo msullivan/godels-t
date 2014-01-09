@@ -44,7 +44,6 @@ module HT where
   lhs-halt (halts eval-refl ())
   lhs-halt (halts (eval-cons (step-app-l S1) E) val) with lhs-halt (halts E val)
   ... | halts E' val' = halts (eval-cons S1 E') val'
-  lhs-halt (halts (eval-cons (step-app-r S2) E) val) = lhs-halt (halts E val)
   lhs-halt (halts (eval-cons step-beta E) val) = halts eval-refl val-lam
 
   -- I think the induction principle for this datatype is the definition of

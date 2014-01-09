@@ -17,9 +17,7 @@ module Progress where
   progress (Λ e) = prog-val val-lam
   progress (e₁ $ e₂) with progress e₁
   progress (e₁ $ e₂) | prog-step D = prog-step (step-app-l D)
-  progress (.(Λ e) $ e₂) | prog-val (val-lam {_} {_} {e}) with progress e₂
-  ... | prog-val D = prog-step step-beta
-  ... | prog-step D' = prog-step (step-app-r D')
+  progress (.(Λ e) $ e₂) | prog-val (val-lam {_} {_} {e}) = prog-step step-beta
   progress zero = prog-val val-zero
   progress (suc e) with progress e
   ... | prog-val D = prog-val (val-suc D)
