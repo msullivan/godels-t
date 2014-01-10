@@ -154,8 +154,18 @@ module SubstTheory where
                     ssubst (singγ e') (ssubst (liftγ γ) e)
   combine-subst-noob γ e e' = subcomp (singγ e') (liftγ γ) e
 
+  -- A lemma we need to define our relations on substs that respect relns
   extend-nofail-s : ∀{Γ Γ' A B} → (γ : TSubst Γ Γ') → (e : TExp Γ' A) → (n : B ∈ Γ) →
                     γ n ≡ (extendγ γ e) (S n)
   extend-nofail-s γ e n = symm (subren (singγ e) S (γ n) ≡≡ subid (γ n))
+
+
+  -- A closed subst is the identity
+  closed-is-empty : (γ : TSubst [] []) → Sub≡ γ emptyγ
+  closed-is-empty γ ()
+
+  -- A substitution made on a closed term is the identity substitution
+  closed-subst : ∀{A} → (γ : TSubst [] []) → (e : TCExp A) → ssubst γ e ≡ e
+  closed-subst γ e = subeq (closed-is-empty γ) e ≡≡ subid e
 
 open SubstTheory public

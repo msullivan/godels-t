@@ -52,3 +52,8 @@ obs-is-coarsest R isCC eq = obs help
         ... | eqC = (IsConsistentCongruence.consistent isCC) eqC
 
 ---- Ugh.
+postulate
+  substs-respect-obs : ∀{Γ} {A} {e e' : TExp Γ A} {γ γ' : TSubst Γ []} →
+                       Γ ⊢ e ≅ e' :: A →
+                       SubstRel (ObservEq []) Γ γ γ' →
+                       [] ⊢ ssubst γ e ≅ ssubst γ' e' :: A
