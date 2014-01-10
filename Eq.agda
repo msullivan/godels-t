@@ -204,3 +204,53 @@ module Eq where
   logical-converse-evaluation-1 {A ⇒ B} eq eval =
     λ e₁ e₁' x → logical-converse-evaluation-1 (eq e₁ e₁' x)
                  (eval-compat step-app-l eval)
+
+  logical-converse-evaluation : ∀{A} {e e' d d' : TCExp A} →
+                                e ~ e' :: A →
+                                d ~>* e →
+                                d' ~>* e' →
+                                d ~ d' :: A
+  logical-converse-evaluation eq eval1 eval2 with logical-converse-evaluation-1 eq eval1
+  ... | eq1 with logical-converse-evaluation-1 (logical-sym eq1) eval2
+  ... | eq2 = logical-sym eq2
+
+  -- This is the hard one.
+  ological-refl : ∀{Γ} {A} → (e : TExp Γ A) → Γ ⊢ e ~ e :: A
+  ological-refl (var x) η = η x
+  ological-refl {Γ} {A ⇒ B} (Λ e) {γ = γ} {γ' = γ'} η = lam-case
+    where lam-case : (e₁ e₁' : TExp [] A) → LogicalEq A e₁ e₁' →
+                      LogicalEq B (Λ (ssubst (liftγ γ) e) $ e₁) (Λ (ssubst (liftγ γ') e) $ e₁')
+          lam-case e₁ e₁' arg-eq with ological-refl e (extendLogicalEQΓ η arg-eq)
+          ... | equiv with combine-subst-noob γ e e₁ | combine-subst-noob γ' e e₁'
+          ... | eq1 | eq2 with ID.coe2 (LogicalEq B) eq1 eq2 equiv
+          ... | equiv' = logical-converse-evaluation equiv'
+                         (eval-step step-beta) (eval-step step-beta)
+  ological-refl (e $ e') η with ological-refl e η | ological-refl e' η
+  ... | eq-e | eq-e' = eq-e _ _ eq-e'
+  ological-refl zero η = kleeneq zero val-zero eval-refl eval-refl
+  ological-refl (suc e) η with ological-refl e η
+  ... | kleeneq n val S1 S2 = kleeneq (suc n) (val-suc val)
+                              (eval-compat step-suc S1) (eval-compat step-suc S2)
+  ological-refl {Γ} {A} (rec e e0 es) {γ = γ} {γ' = γ'} η with ological-refl e η
+  ... | kleeneq n val E1 E2 = logical-converse-evaluation (inner val)
+                              (eval-compat step-rec E1) (eval-compat step-rec E2)
+    where inner : {n : TNat} (val : TVal n) →
+                  ((rec n (ssubst γ e0) (ssubst (liftγ γ) es)) ~
+                   (rec n (ssubst γ' e0) (ssubst (liftγ γ') es)) :: A)
+          inner val-zero = logical-converse-evaluation (ological-refl e0 η)
+                           (eval-step step-rec-z) (eval-step step-rec-z)
+          inner (val-suc val) with ological-refl es (extendLogicalEQΓ η (inner val))
+          ... | equiv with combine-subst-noob γ es _ | combine-subst-noob γ' es _
+          ... | eq1 | eq2 with ID.coe2 (LogicalEq A) eq1 eq2 equiv
+          ... | equiv' = logical-converse-evaluation equiv'
+                         (eval-step (step-rec-s val)) (eval-step (step-rec-s val))
+
+
+  ological-refl' : ∀{Γ} {A} → Reflexive (OLogicalEq Γ A)
+  ological-refl' {x = x} = ological-refl x
+
+  -- I do not understand why these need to be eta expanded
+  ological-is-equivalence : ∀{Γ : Ctx} {A : TTp} → IsEquivalence (OLogicalEq Γ A)
+  ological-is-equivalence = record { refl_ = λ {e} → ological-refl' {_} {_} {e}
+                                   ; sym_ = λ {e e'} → ological-sym {_} {_} {e} {e'}
+                                   ; trans_ = λ {e e' e''} → ological-trans {_} {_} {e} {e'} {e''}}
