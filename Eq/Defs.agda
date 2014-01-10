@@ -64,8 +64,13 @@ record IsConsistentCongruence (R : TRel) : Set where
 PCtx : (Γ : Ctx) (A : TTp) → Set
 PCtx Γ A = TCtx Γ A [] nat
 
-ObservEq : TRel
-ObservEq Γ A e e' = ∀(C : PCtx Γ A) → C < e > ≃ C < e' >
+-- This is a record in the hopes that it will be easier to read.
+-- Doing it this way also has a lot of annoying drawbacks when
+-- actually proving observational eqs.
+record ObservEq (Γ : Ctx) (A : TTp) (e e' : TExp Γ A) : Set where
+  constructor obs
+  field
+    observe : ∀(C : PCtx Γ A) → C < e > ≃ C < e' >
 
 syntax ObservEq Γ A e e' = Γ ⊢ e ≅ e' :: A
 

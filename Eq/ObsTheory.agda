@@ -8,16 +8,16 @@ open import Contexts
 open import Eq.Defs
 open import Eq.KleeneTheory
 
-
+open ObservEq
 ---- Proofs about observational equivalence
 
 -- observational equivalence being an equiv reln follows trivially from kleene equiv being one
 obs-refl : ∀ {Γ} {A} → Reflexive (ObservEq Γ A)
-obs-refl C = kleene-refl
+obs-refl = obs (λ C → kleene-refl)
 obs-sym : ∀ {Γ} {A} → Symmetric (ObservEq Γ A)
-obs-sym eq C = kleene-sym (eq C)
+obs-sym eq = obs (λ C → kleene-sym (observe eq C))
 obs-trans : ∀ {Γ} {A} → Transitive (ObservEq Γ A)
-obs-trans eq1 eq2 C = kleene-trans (eq1 C) (eq2 C)
+obs-trans eq1 eq2 = obs (λ C → kleene-trans (observe eq1 C) (observe eq2 C))
 
 obs-is-equivalence : ∀{Γ} {A} → IsEquivalence (ObservEq Γ A)
 obs-is-equivalence = record { refl_ = obs-refl
@@ -25,11 +25,13 @@ obs-is-equivalence = record { refl_ = obs-refl
                             ; trans_ = obs-trans }
 
 obs-congruence : Congruence ObservEq
-obs-congruence {e = e} {e' = e'} oeq C C' with oeq (C' << C >>)
-... | keq = ID.coe2 KleeneEq (composing-commutes C' C e) (composing-commutes C' C e') keq
+obs-congruence {e = e} {e' = e'} oeq C = obs help
+  where help : (C₁ : TCtx _ _ _ _) → KleeneEq (C₁ < C < e > >) (C₁ < C < e' > >)
+        help C' with observe oeq (C' << C >>)
+        ... | keq = ID.coe2 KleeneEq (composing-commutes C' C e) (composing-commutes C' C e') keq
 
 obs-consistent : Consistent ObservEq
-obs-consistent oeq = oeq ∘
+obs-consistent oeq = observe oeq ∘
 
 obs-is-con-congruence : IsConsistentCongruence ObservEq
 obs-is-con-congruence = record { equiv = obs-is-equivalence
@@ -44,8 +46,9 @@ obs-is-con-congruence = record { equiv = obs-is-equivalence
 obs-is-coarsest : (R : TRel) → IsConsistentCongruence R →
                   {Γ : Ctx} {A : TTp} →
                   (R Γ A) ⊆ (ObservEq Γ A)
-obs-is-coarsest R isCC eq C with (IsConsistentCongruence.cong isCC) eq C
-... | eqC = (IsConsistentCongruence.consistent isCC) eqC
-
+obs-is-coarsest R isCC eq = obs help
+  where help : (C : TCtx _ _ _ _) → KleeneEq (C < _ >) (C < _ >)
+        help C with (IsConsistentCongruence.cong isCC) eq C
+        ... | eqC = (IsConsistentCongruence.consistent isCC) eqC
 
 ---- Ugh.
