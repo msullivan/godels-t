@@ -17,6 +17,3 @@ open import Eq.LogicalTheory
 obs-contains-logical : ∀{Γ} {A} → (OLogicalEq Γ A) ⊆ (ObservEq Γ A)
 obs-contains-logical = obs-is-coarsest OLogicalEq log-is-con-congruence
 
-
-
---

@@ -28,6 +28,7 @@ record IsEquivalence {A : Set}
     trans_ : Transitive R
 
 TRel = (Γ : Ctx) (A : TTp) → Rel (TExp Γ A)
+CRel = (A : TTp) → Rel (TExp [] A)
 
 -- Specific relation stuff about T
 Congruence : TRel → Set
@@ -69,7 +70,7 @@ ObservEq Γ A e e' = ∀(C : PCtx Γ A) → C < e > ≃ C < e' >
 syntax ObservEq Γ A e e' = Γ ⊢ e ≅ e' :: A
 
 ---- Logical equivalence
-LogicalEq : (A : TTp) → TCExp A → TCExp A → Set
+LogicalEq : CRel
 LogicalEq nat e e' = e ≃ e'
 LogicalEq (A ⇒ B) e e' = (e₁ e₁' : TCExp A) →
                          LogicalEq A e₁ e₁' → LogicalEq B (e $ e₁) (e' $ e₁')
@@ -77,22 +78,27 @@ LogicalEq (A ⇒ B) e e' = (e₁ e₁' : TCExp A) →
 syntax LogicalEq A e e' = e ~ e' :: A
 
 
--- Start towards open logical equiv
+-- Need a notion of pairs of closing substitutions that respect a relation on closed terms
+-- Relations on closed terms
 
--- extend equiv to substitutions
-LogicalEqΓ : (Γ : Ctx) → TSubst Γ [] → TSubst Γ [] → Set
-LogicalEqΓ Γ γ γ' = ∀{A} (x : A ∈ Γ) → (γ x ~ γ' x :: A)
+SubstRel : (R : CRel) (Γ : Ctx) → TSubst Γ [] → TSubst Γ [] → Set
+SubstRel R Γ γ γ' = ∀{A} (x : A ∈ Γ) → (R A (γ x) (γ' x))
 
-emptyLogicalEqΓ : ∀{γ γ' : TSubst [] []} -> LogicalEqΓ [] γ γ'
-emptyLogicalEqΓ ()
+emptySubstRel : ∀(R : CRel) {γ γ' : TSubst [] []} -> SubstRel R [] γ γ'
+emptySubstRel R ()
 
-extendLogicalEQΓ : ∀{Γ A} {e e' : TCExp A} {γ γ' : TSubst Γ []} →
-                   LogicalEqΓ Γ γ γ' → e ~ e' :: A →
-                   LogicalEqΓ (A :: Γ) (extendγ γ e) (extendγ γ' e')
-extendLogicalEQΓ η eq Z = eq
-extendLogicalEQΓ {_} {_} {e} {e'} {γ} {γ'} η eq (S n) with η n
-... | xeq = ID.coe2 (LogicalEq _)
+extendSubstRel : ∀(R : CRel) {Γ A} {e e' : TCExp A} {γ γ' : TSubst Γ []} →
+                   SubstRel R Γ γ γ' → (R A e e') →
+                   SubstRel R (A :: Γ) (extendγ γ e) (extendγ γ' e')
+extendSubstRel R η eq Z = eq
+extendSubstRel R {_} {_} {e} {e'} {γ} {γ'} η eq (S n) with η n
+... | xeq = ID.coe2 (R _)
             (SubstTheory.extend-nofail-s γ e n) (SubstTheory.extend-nofail-s γ' e' n) xeq
+
+-- Specialize that stuff for logical equivalence
+LogicalEqΓ = SubstRel LogicalEq
+emptyLogicalEqΓ = emptySubstRel LogicalEq
+extendLogicalEQΓ = extendSubstRel LogicalEq
 
 ---- Open logical equivalence
 OLogicalEq : TRel

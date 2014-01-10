@@ -3,6 +3,7 @@ module Eq.ObsTheory where
 open import Prelude
 open import T
 open import DynTheory
+import SubstTheory
 open import Contexts
 open import Eq.Defs
 open import Eq.KleeneTheory
@@ -45,3 +46,6 @@ obs-is-coarsest : (R : TRel) → IsConsistentCongruence R →
                   (R Γ A) ⊆ (ObservEq Γ A)
 obs-is-coarsest R isCC eq C with (IsConsistentCongruence.cong isCC) eq C
 ... | eqC = (IsConsistentCongruence.consistent isCC) eqC
+
+
+---- Ugh.
