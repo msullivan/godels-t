@@ -9,10 +9,6 @@ open import DynTheory
 module HT where
 
   ---- Halting and Hereditary Termination
-  -- Should I use a record, or the product thing, or something else?
-  data THalts : ∀{A} → TCExp A → Set where
-    halts : {A : TTp} {e e' : TCExp A} → (eval : (e ~>* e')) → (val : TVal e') → THalts e
-
   -- An old comment about lhs-halt
 
   -- Mostly for fun, I didn't want to include "and it halts" as part

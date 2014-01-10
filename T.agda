@@ -194,4 +194,8 @@ module GÖDEL-T where
   eval-step : ∀{A} {e e' : TCExp A} → e ~> e' → e ~>* e'
   eval-step s = eval-cons s eval-refl
 
+  -- Should I use a record, or the product thing, or something else?
+  data THalts : ∀{A} → TCExp A → Set where
+    halts : {A : TTp} {e e' : TCExp A} → (eval : (e ~>* e')) → (val : TVal e') → THalts e
+
 open GÖDEL-T public

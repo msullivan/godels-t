@@ -42,8 +42,8 @@ record KleeneEq (e e' : TNat) : Set where
   field
     n : TNat
     val : TVal n
-    S1 : e ~>* n
-    S2 : e' ~>* n
+    E1 : e ~>* n
+    E2 : e' ~>* n
 
 _≃_ = KleeneEq
 

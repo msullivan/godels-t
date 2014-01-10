@@ -6,7 +6,7 @@ open import DynTheory
 open import SubstTheory
 open import Contexts
 open import Eq.Defs
-open import Eq.KleeneTheory
+open import Eq.KleeneTheoryEarly
 
 -- Theory about logical equivalence
 
