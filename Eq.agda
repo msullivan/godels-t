@@ -254,3 +254,87 @@ module Eq where
   ological-is-equivalence = record { refl_ = λ {e} → ological-refl' {_} {_} {e}
                                    ; sym_ = λ {e e'} → ological-sym {_} {_} {e} {e'}
                                    ; trans_ = λ {e e' e''} → ological-trans {_} {_} {e} {e'} {e''}}
+
+  -- This is basically the same proof as reflexivity...?
+  -- That's weird.
+  ological-is-congruence : Congruence OLogicalEq
+  ological-is-congruence leq ∘ η = leq η
+  ological-is-congruence leq (e₁ e$ C) η with ological-is-congruence leq C η | ological-refl e₁ η
+  ... | equiv-rhs | equiv-lhs = equiv-lhs _ _ equiv-rhs
+  ological-is-congruence leq (C $e e₂) η with ological-is-congruence leq C η | ological-refl e₂ η
+  ... | equiv-lhs | equiv-rhs = equiv-lhs _ _ equiv-rhs
+  ological-is-congruence {e = e} {e' = e'} leq (Λ C) {γ = γ} {γ' = γ'} η = body
+    where -- I feel like I shouldn't have to give so much type information here.
+          body : (e₁ e₁' : TExp [] _) →
+                  LogicalEq _ e₁ e₁' →
+                  LogicalEq _ (Λ (ssubst (liftγ _) (C < e >)) $ e₁)
+                 (Λ (ssubst (liftγ _) (C < e' >)) $ e₁')
+          body e₁ e₁' arg-eq with ological-is-congruence {e = e} {e' = e'} leq C (extendLogicalEQΓ η arg-eq)
+          ... | equiv with combine-subst-noob γ (C < e >) e₁ | combine-subst-noob γ' (C < e' >) e₁'
+          ... | eq1 | eq2 with ID.coe2 (LogicalEq _) eq1 eq2 equiv
+          ... | equiv' = logical-converse-evaluation equiv'
+                         (eval-step step-beta) (eval-step step-beta)
+  ological-is-congruence leq (suc C) η with ological-is-congruence leq C η
+  ... | kleeneq n val S1 S2 = kleeneq (suc n) (val-suc val)
+                              (eval-compat step-suc S1) (eval-compat step-suc S2)
+  -- Is there a way to abstract out all the shit in these three bits?
+  ological-is-congruence {e = e} {e' = e'} leq {A' = A'} (rec1 C e0 es) {γ = γ} {γ' = γ'} η
+    with ological-is-congruence leq C η
+  ... | kleeneq n val E1 E2 = logical-converse-evaluation (inner val)
+                              (eval-compat step-rec E1) (eval-compat step-rec E2)
+    where inner : {n : TNat} (val : TVal n) →
+                  ((rec n (ssubst γ e0) (ssubst (liftγ γ) es)) ~
+                   (rec n (ssubst γ' e0) (ssubst (liftγ γ') es)) :: A')
+          inner val-zero = logical-converse-evaluation (ological-refl e0 η)
+                           (eval-step step-rec-z) (eval-step step-rec-z)
+          inner (val-suc val) with ological-refl es (extendLogicalEQΓ η (inner val))
+          ... | equiv with combine-subst-noob γ es _ | combine-subst-noob γ' es _
+          ... | eq1 | eq2 with ID.coe2 (LogicalEq A') eq1 eq2 equiv
+          ... | equiv' = logical-converse-evaluation equiv'
+                         (eval-step (step-rec-s val)) (eval-step (step-rec-s val))
+
+  ological-is-congruence {e = e} {e' = e'} leq {A' = A'} (rec2 en C es) {γ = γ} {γ' = γ'} η
+    with ological-refl en η
+  ... | kleeneq n val E1 E2 = logical-converse-evaluation (inner val)
+                              (eval-compat step-rec E1) (eval-compat step-rec E2)
+    where inner : {n : TNat} (val : TVal n) →
+                  ((rec n (ssubst γ (C < e >)) (ssubst (liftγ γ) es)) ~
+                   (rec n (ssubst γ' (C < e' >)) (ssubst (liftγ γ') es)) :: A')
+          inner val-zero = logical-converse-evaluation (ological-is-congruence leq C η)
+                           (eval-step step-rec-z) (eval-step step-rec-z)
+          inner (val-suc val) with ological-refl es (extendLogicalEQΓ η (inner val))
+          ... | equiv with combine-subst-noob γ es _ | combine-subst-noob γ' es _
+          ... | eq1 | eq2 with ID.coe2 (LogicalEq A') eq1 eq2 equiv
+          ... | equiv' = logical-converse-evaluation equiv'
+                         (eval-step (step-rec-s val)) (eval-step (step-rec-s val))
+
+  ological-is-congruence {e = e} {e' = e'} leq {A' = A'} (rec3 en e0 C) {γ = γ} {γ' = γ'} η
+    with ological-refl en η
+  ... | kleeneq n val E1 E2 = logical-converse-evaluation (inner val)
+                              (eval-compat step-rec E1) (eval-compat step-rec E2)
+    where inner : {n : TNat} (val : TVal n) →
+                  ((rec n (ssubst γ e0) (ssubst (liftγ γ) (C < e >))) ~
+                   (rec n (ssubst γ' e0) (ssubst (liftγ γ') (C < e' >))) :: A')
+          inner val-zero = logical-converse-evaluation (ological-refl e0 η)
+                           (eval-step step-rec-z) (eval-step step-rec-z)
+          inner (val-suc val) with ological-is-congruence leq C (extendLogicalEQΓ η (inner val))
+          ... | equiv with combine-subst-noob γ (C < e >) _ | combine-subst-noob γ' (C < e' >) _
+          ... | eq1 | eq2 with ID.coe2 (LogicalEq A') eq1 eq2 equiv
+          ... | equiv' = logical-converse-evaluation equiv'
+                         (eval-step (step-rec-s val)) (eval-step (step-rec-s val))
+
+  ological-consistent : Consistent OLogicalEq
+  ological-consistent leq with leq (emptyLogicalEqΓ {γ = emptyγ} {γ' = emptyγ})
+  ... | keq = ID.coe2 KleeneEq (subid _) (subid _) keq
+
+
+  log-is-con-congruence : IsConsistentCongruence OLogicalEq
+  log-is-con-congruence = record { equiv = ological-is-equivalence
+                                 ; cong = ological-is-congruence
+                                 ; consistent = ological-consistent
+                                 }
+
+  -- Now that we have shown that logical equivalence is a consistent congruence,
+  -- it follows that it is contained in observational equivalence.
+  obs-contains-logical : ∀{Γ} {A} → (OLogicalEq Γ A) ⊆ (ObservEq Γ A)
+  obs-contains-logical = obs-is-coarsest OLogicalEq log-is-con-congruence
