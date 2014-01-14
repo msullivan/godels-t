@@ -168,13 +168,13 @@ module SubstTheory where
   closed-subst : ∀{A} → (γ : TSubst [] []) → (e : TCExp A) → ssubst γ e ≡ e
   closed-subst γ e = subeq (closed-is-empty γ) e ≡≡ subid e
 
-  postulate
-    compose-subst-noob : ∀{Γ} {C} → (γ : TSubst Γ []) →
+  compose-subst-noob : ∀{Γ} {C} → (γ : TSubst Γ []) →
                         (e : TExp Γ C) →
                         {A : TTp} → (x : A ∈ C :: Γ) →
                         subComp (singγ (ssubst γ e)) (liftγ γ) x ≡
                         subComp γ (singγ e) x
---  compose-subst-noob = {!!}
+  compose-subst-noob γ e Z = Refl
+  compose-subst-noob γ e (S x) = subren (singγ (ssubst γ e)) (λ y → S y) (γ x) ≡≡ subid (γ x)
 
 
 open SubstTheory public
