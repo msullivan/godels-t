@@ -111,3 +111,32 @@ OLogicalEq Γ A e e' = ∀{γ γ' : TSubst Γ []} → LogicalEqΓ Γ γ γ' →
                       (ssubst γ e) ~ (ssubst γ' e') :: A
 
 syntax OLogicalEq Γ A e e' = Γ ⊢ e ~ e' :: A
+
+
+---- Definitional (beta) equivalence
+-- Definitional equivalence is the strongest congruence closed under
+-- the beta axioms. Dunno what the best way to define this is,
+-- so I'm just going to define it with constructors for refl/sym/trans
+-- and congruence as well as the axioms.
+data _==_ : ∀{Γ} {A} → TExp Γ A → TExp Γ A → Set where
+  def-refl  : ∀{Γ} {A} {e : TExp Γ A} →
+              e == e
+  def-sym   : ∀{Γ} {A} {e e' : TExp Γ A} →
+              e == e' → e' == e
+  def-trans : ∀{Γ} {A} {e e' e'' : TExp Γ A} →
+              e == e' → e' == e'' → e == e''
+
+  def-cong  : ∀{Γ} {A} {e e' : TExp Γ A} →
+              e == e' →
+              {Γ' : Ctx} {A' : TTp} → (C : TCtx Γ A Γ' A') →
+              C < e > == C < e' >
+
+  def-beta  : ∀{Γ} {A B} {e : TExp (A :: Γ) B} {e' : TExp Γ A} →
+              ((Λ e) $ e') == ssubst (singγ e') e
+  def-rec-z : ∀{Γ} {A} {e0 : TExp Γ A} {es : TExp (A :: Γ) A} →
+              rec zero e0 es == e0
+  def-rec-s : ∀{Γ} {A} {e : TExp Γ nat} {e0 : TExp Γ A} {es : TExp (A :: Γ) A} →
+              rec (suc e) e0 es == ssubst (singγ (rec e e0 es)) es
+
+DefEq : TRel
+DefEq Γ A = _==_ {Γ} {A}

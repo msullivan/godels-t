@@ -8,6 +8,11 @@ open import Contexts
 open import Eq.Defs
 open import Eq.KleeneTheoryEarly
 
+-- Closed equivalence is contained in open
+closed-logical-imp-open : ∀{A} → LogicalEq A ⊆ OLogicalEq [] A
+closed-logical-imp-open {A} {e} {e'} leq {γ} {γ'} η =
+  ID.coe2 (LogicalEq A) (symm (closed-subst γ e)) (symm (closed-subst γ' e')) leq
+
 -- Theory about logical equivalence
 
 logical-sym : ∀{A} → Symmetric (LogicalEq A)
@@ -92,6 +97,26 @@ ological-refl {Γ} {A} (rec e e0 es) {γ = γ} {γ' = γ'} η with ological-refl
 
 ological-refl' : ∀{Γ} {A} → Reflexive (OLogicalEq Γ A)
 ological-refl' {x = x} = ological-refl x
+
+
+-- Extend it back to closed terms and to substitutions
+logical-refl : ∀{A} → Reflexive (LogicalEq A)
+logical-refl {x = e} with ological-refl e (emptyLogicalEqΓ {γ = emptyγ} {γ' = emptyγ})
+... | leq = ID.coe2 (LogicalEq _) (subid e) (subid e) leq
+
+logicalγ-refl : ∀{Γ} → Reflexive (LogicalEqΓ Γ)
+logicalγ-refl n = logical-refl
+
+
+logical-is-equivalence : ∀{A : TTp} → IsEquivalence (LogicalEq A)
+logical-is-equivalence = record { refl_ = logical-refl
+                                ; sym_ = logical-sym
+                                ; trans_ = logical-trans }
+logicalγ-is-equivalence : ∀{Γ : Ctx} → IsEquivalence (LogicalEqΓ Γ)
+logicalγ-is-equivalence = record { refl_ = λ {γ} → logicalγ-refl {_} {γ}
+                                 ; sym_ = logicalγ-sym
+                                 ; trans_ = logicalγ-trans }
+
 
 -- I do not understand why these need to be eta expanded
 ological-is-equivalence : ∀{Γ : Ctx} {A : TTp} → IsEquivalence (OLogicalEq Γ A)
