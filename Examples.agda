@@ -5,11 +5,7 @@ open import T
 
 ---- some example programs
 -- boy, de bruijn indexes are unreadable
-bs-subst : ∀{Γ} → TRen [] Γ
-bs-subst ()
-
-w : ∀{Γ B} → TCExp B → TExp Γ B
-w e = ren bs-subst e
+w = weaken-closed
 
 one : TNat
 one = suc zero

@@ -177,4 +177,8 @@ module SubstTheory where
   compose-subst-noob γ e (S x) = subren (singγ (ssubst γ e)) (λ y → S y) (γ x) ≡≡ subid (γ x)
 
 
+  drop-fix : ∀{Γ A} → (γ : TSubst (A :: Γ) []) → Sub≡ γ (subComp (singγ (γ Z)) (liftγ (dropγ γ)))
+  drop-fix γ Z = Refl
+  drop-fix γ (S x) = symm (subren (singγ (γ Z)) S (γ (S x)) ≡≡ subid (γ (S x)))
+
 open SubstTheory public

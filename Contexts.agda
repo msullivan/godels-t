@@ -5,7 +5,8 @@ open import T
 
 module Contexts where
 
-  data TCtx (Γ : Ctx) (A : TTp) : Ctx → TTp → Set where
+  -- Has a hole of type (Γ ⊢ A), produces a term of type (Γ' ⊢ A')
+  data TCtx (Γ : Ctx) (A : TTp) : (Γ' : Ctx) → (A' : TTp) → Set where
     ∘ : TCtx Γ A Γ A
     _e$_ : ∀{Γ' A' B} (e₁ : TExp Γ' (A' ⇒ B)) (C₂ : TCtx Γ A Γ' A') → TCtx Γ A Γ' B
     _$e_ : ∀{Γ' A' B} (C₁ : TCtx Γ A Γ' (A' ⇒ B)) (e₂ : TExp Γ' A') → TCtx Γ A Γ' B
