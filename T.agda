@@ -142,8 +142,8 @@ module GÖDEL-T where
   dropγ : ∀{Γ A Γ'} → TSubst (A :: Γ) Γ' → TSubst Γ Γ'
   dropγ γ n = γ (S n)
 
-  closed-wkγ : (Γ : Ctx) → TRen [] Γ
-  closed-wkγ Γ ()
+  closed-wkγ : {Γ : Ctx} → TRen [] Γ
+  closed-wkγ ()
 
   ssubst : ∀{Γ Γ' C} →
            (γ : TSubst Γ Γ') →
@@ -168,7 +168,7 @@ module GÖDEL-T where
   subst e' e = ssubst (singγ e') e
 
   weaken-closed : ∀{Γ B} → TCExp B → TExp Γ B
-  weaken-closed e = ren (closed-wkγ _) e
+  weaken-closed e = ren closed-wkγ e
 
   ---- dynamic semantics (and, implicitly, preservation)
   data TVal : ∀{A} → TCExp A → Set where

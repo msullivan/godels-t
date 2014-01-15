@@ -91,14 +91,14 @@ subst-ctx-substs : ∀{Γ A} → (γ : TSubst Γ []) → (e : TExp Γ A) →
                    (subst-ctx γ) < e > ~>* ssubst γ e
 subst-ctx-substs {[]} γ e = ID.coe1 (_~>*_ e) (symm (closed-subst γ e)) eval-refl
 subst-ctx-substs {B :: Γ} γ e with composing-commutes (subst-ctx (λ {A} n → γ (S n)))
-                                                      (Λ ∘ $e ren (closed-wkγ Γ) (γ Z))
+                                                      (Λ ∘ $e ren closed-wkγ (γ Z))
                                                       e
-... | ctx-eq with subst-ctx-substs (dropγ γ) (Λ e $ ren (closed-wkγ Γ) (γ Z))
+... | ctx-eq with subst-ctx-substs (dropγ γ) (Λ e $ ren closed-wkγ (γ Z))
 
 ... | recursive-case with
-  ID.coe1 (λ z → (subst-ctx (λ {A} n → γ (S n)) < Λ e $ ren (closed-wkγ Γ) (γ Z) >)
+  ID.coe1 (λ z → (subst-ctx (λ {A} n → γ (S n)) < Λ e $ ren closed-wkγ (γ Z) >)
                                    ~>* (Λ (ssubst (liftγ (λ {A} n → γ (S n))) e) $ z))
-          (subren (dropγ γ) (closed-wkγ Γ) (γ Z) ≡≡ closed-subst (γ o S o closed-wkγ Γ) (γ Z))
+          (subren (dropγ γ) closed-wkγ (γ Z) ≡≡ closed-subst (γ o S o closed-wkγ) (γ Z))
           recursive-case
 
 ... | clean-recursive with step-beta {e = ssubst (liftγ (λ {A} n → γ (S n))) e} {e' = γ Z}

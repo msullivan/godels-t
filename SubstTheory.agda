@@ -168,6 +168,13 @@ module SubstTheory where
   closed-subst : ∀{A} → (γ : TSubst [] []) → (e : TCExp A) → ssubst γ e ≡ e
   closed-subst γ e = subeq (closed-is-empty γ) e ≡≡ subid e
 
+  -- lift of a closed subst, also identity - feel like there is a nicer way to do this
+  lift-closed-is-empty : ∀{A} (γ : TSubst [] []) → Sub≡ (liftγ {A = A} γ) emptyγ
+  lift-closed-is-empty γ Z = Refl
+  lift-closed-is-empty γ (S x) = resp (ren _) (closed-is-empty γ x)
+  lift-closed-subst : ∀{A B} → (γ : TSubst [] []) → (e : TExp (B :: []) A) → ssubst (liftγ γ) e ≡ e
+  lift-closed-subst γ e = subeq (lift-closed-is-empty γ) e ≡≡ subid e
+
   compose-subst-noob : ∀{Γ} {C} → (γ : TSubst Γ []) →
                         (e : TExp Γ C) →
                         {A : TTp} → (x : A ∈ C :: Γ) →
