@@ -118,5 +118,4 @@ module Contexts where
               lol
   subst-commutes-w-closed-tctx γ (rec3 e e₀ C) e₁ = tctx-empty-thing C
 
-
 open Contexts public

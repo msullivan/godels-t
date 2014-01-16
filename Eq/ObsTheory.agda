@@ -58,6 +58,8 @@ obs-is-coarsest R isCC eq = obs help
 -- Bob builds one big lambda and then does all the applications.
 -- That is nice, because no weakening needs to happen, but also
 -- requires multiple inductions.
+-- XXX: The fact that we have weakening actually is the reason the proof
+-- is incomplete; fuck.
 -- It took me a while of fiddling around before I came up with this
 -- formulation based on composing contexts, but it works really nicely.
 --
@@ -114,9 +116,74 @@ subst-ctx-substs-eq γ e with subst-ctx-substs γ e | kleene-refl {x = ssubst γ
 ... | eval | kleeneq n val E1 E2 = kleeneq n val (eval-trans eval E1) E2
 
 
----- Ugh.
-postulate
-  substs-respect-obs : ∀{Γ} {A} {e e' : TExp Γ A} {γ γ' : TSubst Γ []} →
+obsγ-refl : ∀{Γ} → Reflexive (SubstRel (ObservEq []) Γ)
+obsγ-refl n = obs-refl
+
+
+
+substs-respect-obs-1 : ∀{Γ} {A} {e e' : TExp Γ A} {γ : TSubst Γ []} →
                        Γ ⊢ e ≅ e' :: A →
+                       [] ⊢ ssubst γ e ≅ ssubst γ e' :: A
+substs-respect-obs-1 {Γ} {A} {e} {e'} {γ} (obs observe) = obs help
+  where help : (C : TCtx [] A [] nat) → KleeneEq (C < ssubst γ e >) (C < ssubst γ e' >)
+        help C = help2 where
+          D = subst-ctx γ << weaken-closed-tctx C >>
+          help2 : KleeneEq (C < ssubst γ e >) (C < ssubst γ e' >)
+          help2 with observe D
+          ... | D-equiv with ID.coe2 KleeneEq
+                             (composing-commutes (subst-ctx γ) (weaken-closed-tctx C) e)
+                             (composing-commutes (subst-ctx γ) (weaken-closed-tctx C) e')
+                             D-equiv
+          ... | D-equiv2 with subst-ctx-substs-eq γ ((weaken-closed-tctx C) < e >) |
+                              subst-ctx-substs-eq γ ((weaken-closed-tctx C) < e' >)
+          ... | sub-equiv1 | sub-equiv2 with
+            kleene-trans (kleene-sym sub-equiv1) (kleene-trans D-equiv2 sub-equiv2)
+          ... | equiv = ID.coe2 KleeneEq
+                (symm (subst-commutes-w-closed-tctx γ C e))
+                (symm (subst-commutes-w-closed-tctx γ C e')) equiv
+
+-- XXX: This is actually nontrivial, I think. Fuck.
+postulate
+  weakened-equiv : ∀{Γ} {A} {e e' : TCExp A} →
+                   [] ⊢ e ≅ e' :: A →
+                   Γ ⊢ weaken-closed e ≅ weaken-closed e' :: A
+
+
+subst-ctx-respect-obs : ∀{Γ} {A} (e : TExp Γ A) {γ γ' : TSubst Γ []} →
+                         SubstRel (ObservEq []) Γ γ γ' →
+                         [] ⊢ subst-ctx γ < e > ≅ subst-ctx γ' < e > :: A
+subst-ctx-respect-obs {[]} e η = obs-refl
+subst-ctx-respect-obs {B :: Γ} {A} e {γ} {γ'} η with
+  subst-ctx-respect-obs (Λ e $ ren closed-wkγ (γ Z)) {dropγ γ} {dropγ γ'} (λ x → η (S x))
+... | D-D'-e-equiv with obs-congruence (weakened-equiv (η Z)) (Λ e e$ ∘)
+... | cong1 with obs-congruence cong1 (subst-ctx (dropγ γ'))
+... | cong2 with obs-trans D-D'-e-equiv cong2
+... | equiv = ID.coe2 (ObservEq [] A)
+              (symm (composing-commutes (subst-ctx (dropγ γ)) ((Λ ∘) $e ren closed-wkγ (γ Z)) e))
+              (symm (composing-commutes (subst-ctx (dropγ γ')) ((Λ ∘) $e ren closed-wkγ (γ' Z)) e))
+              equiv
+
+-- There is much in this proof that is similar to substs-respect-obs-1.
+-- Maybe they could have been merged more?
+substs-respect-obs-2 : ∀{Γ} {A} (e : TExp Γ A) {γ γ' : TSubst Γ []} →
                        SubstRel (ObservEq []) Γ γ γ' →
-                       [] ⊢ ssubst γ e ≅ ssubst γ' e' :: A
+                       [] ⊢ ssubst γ e ≅ ssubst γ' e :: A
+substs-respect-obs-2 {Γ} {A} e {γ} {γ'} η = obs help
+  where help : (C : TCtx [] A [] nat) → KleeneEq (C < ssubst γ e >) (C < ssubst γ' e >)
+        help C with subst-ctx-respect-obs (weaken-closed-tctx C < e >) η
+        ... | oeq with obs-consistent oeq
+        ... | keq with subst-ctx-substs-eq γ ((weaken-closed-tctx C) < e >) |
+                       subst-ctx-substs-eq γ' ((weaken-closed-tctx C) < e >)
+        ... | sub-equiv1 | sub-equiv2 with
+          kleene-trans (kleene-sym sub-equiv1) (kleene-trans keq sub-equiv2)
+        ... | equiv = ID.coe2 KleeneEq
+              (symm (subst-commutes-w-closed-tctx γ C e))
+              (symm (subst-commutes-w-closed-tctx γ' C e)) equiv
+
+
+substs-respect-obs : ∀{Γ} {A} {e e' : TExp Γ A} {γ γ' : TSubst Γ []} →
+                     Γ ⊢ e ≅ e' :: A →
+                     SubstRel (ObservEq []) Γ γ γ' →
+                     [] ⊢ ssubst γ e ≅ ssubst γ' e' :: A
+substs-respect-obs {Γ} {A} {e} {e'} {γ} {γ'} oeq η =
+  obs-trans (substs-respect-obs-2 e η) (substs-respect-obs-1 oeq)

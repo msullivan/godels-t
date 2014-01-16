@@ -161,10 +161,14 @@ module SubstTheory where
 
 
   -- A closed subst is the identity
+  closed-is-empty-ren : (γ : TRen [] []) → Ren≡ γ renId
+  closed-is-empty-ren γ ()
   closed-is-empty : (γ : TSubst [] []) → Sub≡ γ emptyγ
   closed-is-empty γ ()
 
   -- A substitution made on a closed term is the identity substitution
+  closed-ren : ∀{A} → (γ : TRen [] []) → (e : TCExp A) → ren γ e ≡ e
+  closed-ren γ e = reneq (closed-is-empty-ren γ) e ≡≡ renid e
   closed-subst : ∀{A} → (γ : TSubst [] []) → (e : TCExp A) → ssubst γ e ≡ e
   closed-subst γ e = subeq (closed-is-empty γ) e ≡≡ subid e
 
