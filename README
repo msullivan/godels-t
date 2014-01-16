@@ -1,5 +1,7 @@
 Proof of some theorems about Gödel's System T:
-  progress, preservation, and termination.
+  progress, preservation, and termination,
+  that observational and logical equivalence coincide,
+  that logical equivalence contains definitional equivalence.
 -Michael Sullivan (mjsulliv@cs.cmu.edu)
 
 We use the strategy for representing substitutions and renamings presented in:
@@ -9,7 +11,7 @@ and treating renaming and substitution completely seperately is ugly.
 The first reply to the post linked above presents a refinement that
 avoids these problems, but at the cost of moving weakening into
 every substitution function, where we can't reason about it.
-The vast majority of my time spent on this proof was fighting with
+The vast majority of my time spent on the proof of HT was fighting with
 substitutions so that I could prove combine-subst-noob.
 
 This uses an intrinsic representation, where the typing derivation
@@ -17,8 +19,10 @@ is intrinsic to the syntax datatype. This means that the
 substitution lemma is built into the definition of substitution and
 preservation is built into the dynamic semantics.
 
-The dynamic semantics are non-deterministic and call-by-name. This
-made the HT proof easier.
+The dynamic semantics are call-by-name for function application but
+eager for natural numbers. Being CBN makes a lot of things easier in
+the HT and equivalence proofs, but we still want naturals to evaluate
+to a numeral.
 
 Some inspiration taken from
 https://github.com/robsimmons/agda-lib/blob/pattern-0/GoedelT.agda
@@ -31,18 +35,38 @@ for any terribleness. There are probably a bunch of ways to clean
 things up and reduce some code duplication.
 
 Source tree overview:
- T.agda: this file; contains the syntax (and intrinstically the
-         static semantics), denotational semantics, definition of
-         substitution (and intrinstically the substitution lemma),
-         and dynamic semantics (intrinstically preservation).
+ T.agda: Contains the syntax (and intrinstically the static semantics),
+         denotational semantics, definition of substitution (and
+         intrinstically the substitution lemma), and dynamic semantics
+         (intrinstically preservation).
  Progress.agda: statement and proof of progress
- SubstTheory.agda: a bunch of theorems about substitution and
-                   renaming that are needed for the HT proof
- DynTheory.agda: some simple lemmas about the dynamic semantics
- HT.agda: proof of hereditary termination
- DenotCommutes.agda: incomplete proof that the denotational
+ SubstTheory.agda: A bunch of theorems about substitution and
+                   renaming that are needed for the HT and
+                   equivalence proofs
+ DynTheory.agda: Some simple lemmas about the dynamic semantics
+ HT.agda: Proof of hereditary termination
+
+ Contexts.agda: Definition and a couple theorems about program contexts
+                 (that is, programs with a hole in them)
+ Eq.agda: Collects and rexports things about equivalences
+ Eq/Defs.agda: Contains all the key definitions for the various equivalences
+               (Kleene, observational, logical (open and closed), definitional)
+               as well as definitions of properties of these relations
+               (equivalence, congruence, consistency).
+ Eq/KleeneTheory{Early,}.agda: Theorems about Kleene equality
+ Eq/LogicalTheory.agda: Theorems about logical equivalence
+                        (mainly that it is a consistent congruence)
+ Eq/ObsTheory.agda: Theorems about observational equivalence
+                    (that it is the coarsest consistent congruence and that
+                     it respects substitution of observationally equivalent
+                     terms)
+ Eq/Theory.agda: The key results: theorems about the relationship between
+                 equivalences.
+
+
+ DenotCommutes.agda: Incomplete proof that the denotational
                      semantics commute with the dynamics
- Examples.agda: some simple example T programs
- All.agda: just includes everything else to make sure it all works
+ Examples.agda: Some simple example T programs
+ All.agda: Just includes everything else to make sure it all works
 
 I think I am using the module system stupidly.
