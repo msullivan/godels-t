@@ -53,116 +53,91 @@ obs-is-coarsest R isCC eq = obs help
 
 
 -- Produce a program context that is "equivalent" to a substitution.
+-- Essentially the idea is, if we have a substitution
+-- γ = e1/x1,...,en/xn, we produce the term
+-- (λx1. ⋯ λxn. ∘) e1 ⋯ en
 --
--- We do this differently than Bob does in his book.
--- Bob builds one big lambda and then does all the applications.
--- That is nice, because no weakening needs to happen, but also
--- requires multiple inductions.
--- XXX: The fact that we have weakening actually is the reason the proof
--- is incomplete; fuck.
 -- It took me a while of fiddling around before I came up with this
--- formulation based on composing contexts, but it works really nicely.
+-- implementation based on composing contexts, but it works really nicely.
 --
--- I had some previous versions that produced the right term but for which
--- there didn't seem to be a good way to prove subst-ctx-substs.
--- (Essentially it was tail-recursively doing the substitution composition internally.)
+-- The earlier version that I got closest to making work placed the
+-- terms we were substituting underneath other lambdas, which almost
+-- works; since it requires weakening the terms, it means to prove
+-- subst-ctx-respect-obs we would need to show that weakening preserves
+-- observational equivalence. I don't know how to do this without using
+-- that observational and logical equivalence coincide.
 subst-ctx : ∀{Γ C} → (γ : TSubst Γ []) → (TCtx Γ C [] C)
 subst-ctx {[]} γ = ∘
-subst-ctx {A :: Γ} γ with (Λ ∘ $e weaken-closed (γ Z))
-... | app = (subst-ctx (dropγ γ)) << app >>
+subst-ctx {A :: Γ} {C} γ with (subst-ctx {Γ} {A ⇒ C} (dropγ γ))
+... | D = (D << Λ ∘ >>) $e (γ Z)
 
 -- This would basically be the end of the world in call by value.
--- Most of the nastiness here is in coercing things up to equality
--- on substitutions and contexts that compose.
--- On paper, the main bit would be pretty simple:
+-- On paper, this proof goes:
 --
 -- Given some substitution γ[x -> e'], want to show that
--- C << (λ x. ∘) e' >> < e > ~>* γ[x -> e'](e), where C is the context constructed for γ.
--- We know that C << (λ x. ∘) e' >> < e > = C << (λ x. e) e' >>.
--- By induction, we have that "C << (λ x. e) e' >> ~>* (λ x. γ(e)) e'" (we know that e' is closed).
+-- (C << (λ x. ∘) >> e') < e > e'~>* γ[x -> e'](e), where C is the context constructed for γ.
+-- We know that (C << (λ x. ∘) >> e') < e > = C << (λ x. e) >> e'.
+-- By induction, we have that "C << (λ x. e) >> ~>* (λ x. γ(e))", and by compatability rules,
+-- C << (λ x. e) >> e' ~>* (λ x. γ(e)) e'
 -- Then, by beta, we have that (λ x. γ(e)) e' ~> γ([e'/x]e)).
---
--- Of course, everything gets nastier here, but that is the key idea. I wonder if there is
--- a way to reduce the massive nastiness of all the coe1s.
---
--- Originally I tried to formulate this as proving the terms were Kleene equivalent
--- (the output type was restricted to nat), but this turns out to not be strong enough.
--- (It would require definitional equivalence to be contained in observational equivalence,
--- and our proof of that depends on this.)
 subst-ctx-substs : ∀{Γ A} → (γ : TSubst Γ []) → (e : TExp Γ A) →
                    (subst-ctx γ) < e > ~>* ssubst γ e
 subst-ctx-substs {[]} γ e = ID.coe1 (_~>*_ e) (symm (closed-subst γ e)) eval-refl
-subst-ctx-substs {B :: Γ} γ e with composing-commutes (subst-ctx (λ {A} n → γ (S n)))
-                                                      (Λ ∘ $e ren closed-wkγ (γ Z))
-                                                      e
-... | ctx-eq with subst-ctx-substs (dropγ γ) (Λ e $ ren closed-wkγ (γ Z))
+subst-ctx-substs {x :: Γ} γ e with subst-ctx-substs (dropγ γ) (Λ e)
+... | recursive-eval with eval-compat (step-app-l {e₂ = γ Z}) recursive-eval
+... | compat-eval with step-beta {e = ssubst (liftγ (dropγ γ)) e} {e' = γ Z}
+... | step with eval-trans compat-eval (eval-step step)
 
-... | recursive-case with
-  ID.coe1 (λ z → (subst-ctx (λ {A} n → γ (S n)) < Λ e $ ren closed-wkγ (γ Z) >)
-                                   ~>* (Λ (ssubst (liftγ (λ {A} n → γ (S n))) e) $ z))
-          (subren (dropγ γ) closed-wkγ (γ Z) ≡≡ closed-subst (γ o S o closed-wkγ) (γ Z))
-          recursive-case
+... | eval with composing-commutes (subst-ctx (dropγ γ)) (Λ ∘) e
+... | ctx-eq with (symm (subcomp (singγ (γ Z)) (liftγ (dropγ γ)) e) ≡≡ symm (subeq (drop-fix γ) e))
+... | subst-eq = ID.coe2 (λ y z → (y $ γ Z) ~>* z) (symm ctx-eq) subst-eq eval
 
-... | clean-recursive with step-beta {e = ssubst (liftγ (λ {A} n → γ (S n))) e} {e' = γ Z}
-... | step with ID.coe1 (λ z → (Λ (ssubst (liftγ (dropγ γ)) e) $ γ Z) ~> z)
-                (symm (subcomp (singγ (γ Z)) (liftγ (dropγ γ)) e) ≡≡ symm (subeq (drop-fix γ) e))
-                step
-... | step2 with eval-trans clean-recursive (eval-step step2)
-... | eval = ID.coe1 (λ y → y ~>* ssubst γ e) (symm ctx-eq) eval
-
+-- Straightforward extension of the above theorem to kleene equivalence at nat type.
 subst-ctx-substs-eq : ∀{Γ} → (γ : TSubst Γ []) → (e : TExp Γ nat) →
                      (subst-ctx γ) < e > ≃ ssubst γ e
 subst-ctx-substs-eq γ e with subst-ctx-substs γ e | kleene-refl {x = ssubst γ e}
 ... | eval | kleeneq n val E1 E2 = kleeneq n val (eval-trans eval E1) E2
 
-
-obsγ-refl : ∀{Γ} → Reflexive (SubstRel (ObservEq []) Γ)
-obsγ-refl n = obs-refl
-
-
-
-substs-respect-obs-1 : ∀{Γ} {A} {e e' : TExp Γ A} {γ : TSubst Γ []} →
-                       Γ ⊢ e ≅ e' :: A →
-                       [] ⊢ ssubst γ e ≅ ssubst γ e' :: A
-substs-respect-obs-1 {Γ} {A} {e} {e'} {γ} (obs observe) = obs help
-  where help : (C : TCtx [] A [] nat) → KleeneEq (C < ssubst γ e >) (C < ssubst γ e' >)
-        help C = help2 where
-          D = subst-ctx γ << weaken-closed-tctx C >>
-          help2 : KleeneEq (C < ssubst γ e >) (C < ssubst γ e' >)
-          help2 with observe D
-          ... | D-equiv with ID.coe2 KleeneEq
-                             (composing-commutes (subst-ctx γ) (weaken-closed-tctx C) e)
-                             (composing-commutes (subst-ctx γ) (weaken-closed-tctx C) e')
-                             D-equiv
-          ... | D-equiv2 with subst-ctx-substs-eq γ ((weaken-closed-tctx C) < e >) |
-                              subst-ctx-substs-eq γ ((weaken-closed-tctx C) < e' >)
-          ... | sub-equiv1 | sub-equiv2 with
-            kleene-trans (kleene-sym sub-equiv1) (kleene-trans D-equiv2 sub-equiv2)
-          ... | equiv = ID.coe2 KleeneEq
-                (symm (subst-commutes-w-closed-tctx γ C e))
-                (symm (subst-commutes-w-closed-tctx γ C e')) equiv
-
--- XXX: This is actually nontrivial, I think. Fuck.
-postulate
-  weakened-equiv : ∀{Γ} {A} {e e' : TCExp A} →
-                   [] ⊢ e ≅ e' :: A →
-                   Γ ⊢ weaken-closed e ≅ weaken-closed e' :: A
-
-
+-- Prove that observationally equivalent substitutions yield
+-- contexts that are observationally equivalent when applied to a term.
 subst-ctx-respect-obs : ∀{Γ} {A} (e : TExp Γ A) {γ γ' : TSubst Γ []} →
                          SubstRel (ObservEq []) Γ γ γ' →
                          [] ⊢ subst-ctx γ < e > ≅ subst-ctx γ' < e > :: A
 subst-ctx-respect-obs {[]} e η = obs-refl
 subst-ctx-respect-obs {B :: Γ} {A} e {γ} {γ'} η with
-  subst-ctx-respect-obs (Λ e $ ren closed-wkγ (γ Z)) {dropγ γ} {dropγ γ'} (λ x → η (S x))
-... | D-D'-e-equiv with obs-congruence (weakened-equiv (η Z)) (Λ e e$ ∘)
-... | cong1 with obs-congruence cong1 (subst-ctx (dropγ γ'))
-... | cong2 with obs-trans D-D'-e-equiv cong2
-... | equiv = ID.coe2 (ObservEq [] A)
-              (symm (composing-commutes (subst-ctx (dropγ γ)) ((Λ ∘) $e ren closed-wkγ (γ Z)) e))
-              (symm (composing-commutes (subst-ctx (dropγ γ')) ((Λ ∘) $e ren closed-wkγ (γ' Z)) e))
-              equiv
+  subst-ctx-respect-obs (Λ e) {dropγ γ} {dropγ γ'} (λ x → η (S x))
+... | D-D'-equiv with obs-congruence D-D'-equiv (∘ $e γ Z)
+... | cong1 with obs-congruence (η Z) ((subst-ctx (dropγ γ') < Λ e >) e$ ∘)
+... | cong2 with obs-trans cong1 cong2
+... | equiv =
+  ID.coe2 (ObservEq [] A)
+  (symm (resp (λ x → x $ γ Z) (composing-commutes (subst-ctx (dropγ γ)) (Λ ∘) e)))
+  (symm (resp (λ x → x $ γ' Z) (composing-commutes (subst-ctx (dropγ γ')) (Λ ∘) e)))
+  equiv
 
+-- Applying a substitution to two obs equivalent terms yields observational equivalent output.
+-- Takes advantage of substitution contexts.
+substs-respect-obs-1 : ∀{Γ} {A} {e e' : TExp Γ A} {γ : TSubst Γ []} →
+                       Γ ⊢ e ≅ e' :: A →
+                       [] ⊢ ssubst γ e ≅ ssubst γ e' :: A
+substs-respect-obs-1 {Γ} {A} {e} {e'} {γ} (obs observe) = obs help
+  where help : (C : TCtx [] A [] nat) → KleeneEq (C < ssubst γ e >) (C < ssubst γ e' >)
+        help C with observe (subst-ctx γ << weaken-closed-tctx C >>)
+        ... | D-equiv with ID.coe2 KleeneEq
+                           (composing-commutes (subst-ctx γ) (weaken-closed-tctx C) e)
+                           (composing-commutes (subst-ctx γ) (weaken-closed-tctx C) e')
+                           D-equiv
+        ... | D-equiv2 with subst-ctx-substs-eq γ ((weaken-closed-tctx C) < e >) |
+                            subst-ctx-substs-eq γ ((weaken-closed-tctx C) < e' >)
+        ... | sub-equiv1 | sub-equiv2 with
+          kleene-trans (kleene-sym sub-equiv1) (kleene-trans D-equiv2 sub-equiv2)
+        ... | equiv = ID.coe2 KleeneEq
+              (symm (subst-commutes-w-closed-tctx γ C e))
+                (symm (subst-commutes-w-closed-tctx γ C e')) equiv
+
+-- Applying observationally equivalent substitutions a term
+-- yields observational equivalent output.
+-- Takes advantage of substitution contexts.
 -- There is much in this proof that is similar to substs-respect-obs-1.
 -- Maybe they could have been merged more?
 substs-respect-obs-2 : ∀{Γ} {A} (e : TExp Γ A) {γ γ' : TSubst Γ []} →
@@ -180,7 +155,7 @@ substs-respect-obs-2 {Γ} {A} e {γ} {γ'} η = obs help
               (symm (subst-commutes-w-closed-tctx γ C e))
               (symm (subst-commutes-w-closed-tctx γ' C e)) equiv
 
-
+-- Combine the two previous theorems.
 substs-respect-obs : ∀{Γ} {A} {e e' : TExp Γ A} {γ γ' : TSubst Γ []} →
                      Γ ⊢ e ≅ e' :: A →
                      SubstRel (ObservEq []) Γ γ γ' →
