@@ -20,7 +20,7 @@ obs-contains-logical = obs-is-coarsest OLogicalEq log-is-con-congruence
 obs-contains-clogical : ∀{A} → (LogicalEq A) ⊆ (ObservEq [] A)
 obs-contains-clogical leq = obs-contains-logical (closed-logical-imp-open leq)
 
-
+-- Show that observational equivalence implies logical for closed terms.
 obs-implies-closed-logical : ∀{A} {e e' : TCExp A} →
                              [] ⊢ e ≅ e' :: A →
                              e ~ e' :: A
@@ -34,20 +34,25 @@ obs-implies-closed-logical {A ⇒ B} {e} {e'} oeq = body
 obs-contains-logical-subst : ∀{Γ} → SubstRel LogicalEq Γ ⊆ SubstRel (ObservEq []) Γ
 obs-contains-logical-subst η x = obs-contains-clogical (η x)
 
+-- Since observational implies logical for closed terms and
+-- respects substitution of observational equivalent terms,
+-- logical equivalence contains observational.
 logical-contains-obs : ∀{Γ} {A} → ObservEq Γ A ⊆ OLogicalEq Γ A
 logical-contains-obs {Γ} {A} {e} {e'} oeq {γ} {γ'} η
   with substs-respect-obs oeq (obs-contains-logical-subst η)
 ... | coeq = obs-implies-closed-logical coeq
 
 
+
+
+-- This is sort of silly. We need these lemmas to prove that logical
+-- equivalence contains definitional.
 nat-val-weakening : ∀{Γ} {n : TNat} → TVal n →
                     Σ[ e :: TExp Γ nat ] (∀{γ : TSubst Γ []} → n ≡ ssubst γ e)
 nat-val-weakening val-zero = zero , (λ {γ} → Refl)
 nat-val-weakening {Γ} {suc n} (val-suc v) with nat-val-weakening {Γ} v
 ... | e , subst-thing = (suc e) , (λ {γ} → resp suc subst-thing)
 
-
--- This is sort of silly.
 nat-logical-equiv-val : ∀{Γ} (γ : TSubst Γ []) (e : TExp Γ nat) →
                         Σ[ n :: TExp Γ nat ] ((ssubst γ n ~ ssubst γ e :: nat) × TVal (ssubst γ n))
 nat-logical-equiv-val {Γ} γ e with kleene-refl {ssubst γ e}
@@ -55,6 +60,7 @@ nat-logical-equiv-val {Γ} γ e with kleene-refl {ssubst γ e}
 ... | n' , is-val = n' , ((kleeneq n val (ID.coe1 (λ x → x ~>* n) is-val eval-refl) E1) ,
                           ID.coe1 TVal is-val val)
 
+-- Logical equivalence contains definitional equivalence.
 logical-contains-def : ∀{Γ} {A} → DefEq Γ A ⊆ OLogicalEq Γ A
 logical-contains-def {y = e} def-refl η = ological-refl e η
 logical-contains-def {x = e} {y = e'} (def-sym defeq) η =
@@ -104,3 +110,7 @@ logical-contains-def {Γ} {A} (def-rec-s {e = en} {e0 = e0} {es = es}) {γ} {γ'
 ... | leq with step-rec-s {e = ssubst γ n} {e₀ = ssubst γ e0} {es = ssubst (liftγ γ) es} is-val
 ... | step with logical-converse-evaluation-1 leq (eval-step step)
 ... | leq-stepped = logical-trans (logical-sym leq-subrec-2) leq-stepped
+
+-- Obvious corollary that observational equivalence contains definitional.
+obs-contains-def : ∀{Γ} {A} → DefEq Γ A ⊆ ObservEq Γ A
+obs-contains-def = obs-contains-logical o logical-contains-def
