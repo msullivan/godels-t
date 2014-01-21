@@ -113,6 +113,25 @@ logical-contains-def {Γ} {A} (def-rec-s {e = en} {e0 = e0} {es = es}) {γ} {γ'
 obs-contains-def : ∀{Γ} {A} → DefEq Γ A ⊆ ObservEq Γ A
 obs-contains-def = obs-contains-logical o logical-contains-def
 
+
+-- Proving this mostly out of spite, because one formulation
+-- of my theory needed this for observational equivalence,
+-- and there wasn't a good way to prove it other than appealing
+-- to observational equivalence coinciding with logical, which
+-- was what we were trying to prove.
+weakened-equiv-log : ∀{Γ} {A} {e e' : TCExp A} →
+                     e ~ e' :: A →
+                     Γ ⊢ weaken-closed e ~ weaken-closed e' :: A
+weakened-equiv-log {Γ} {A} {e} {e'} leq {γ} {γ'} η with subren γ closed-wkγ e | subren γ' closed-wkγ e'
+... | eq1 | eq2 with closed-subst (γ o closed-wkγ) e | closed-subst (γ' o closed-wkγ) e'
+... | eq1' | eq2' = ID.coe2 (LogicalEq A) (symm eq1' ≡≡ symm eq1) (symm eq2' ≡≡ symm eq2) leq
+
+weakened-equiv-obs : ∀{Γ} {A} {e e' : TCExp A} →
+                     [] ⊢ e ≅ e' :: A →
+                     Γ ⊢ weaken-closed e ≅ weaken-closed e' :: A
+weakened-equiv-obs {Γ} {A} {e} {e'} oeq = obs-contains-logical (weakened-equiv-log {Γ} {A} {e} {e'} (obs-implies-closed-logical oeq))
+
+
 -- Some more stuff about renaming.
 wkren1 : ∀{Γ A} → TRen Γ (A :: Γ)
 wkren1 = (λ x → S x)
