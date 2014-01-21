@@ -43,8 +43,6 @@ logical-contains-obs {Γ} {A} {e} {e'} oeq {γ} {γ'} η
 ... | coeq = obs-implies-closed-logical coeq
 
 
-
-
 -- This is sort of silly. We need these lemmas to prove that logical
 -- equivalence contains definitional.
 nat-val-weakening : ∀{Γ} {n : TNat} → TVal n →
@@ -114,3 +112,48 @@ logical-contains-def {Γ} {A} (def-rec-s {e = en} {e0 = e0} {es = es}) {γ} {γ'
 -- Obvious corollary that observational equivalence contains definitional.
 obs-contains-def : ∀{Γ} {A} → DefEq Γ A ⊆ ObservEq Γ A
 obs-contains-def = obs-contains-logical o logical-contains-def
+
+-- Some more stuff about renaming.
+wkren1 : ∀{Γ A} → TRen Γ (A :: Γ)
+wkren1 = (λ x → S x)
+
+weaken1 : ∀{Γ A B} → TExp Γ B → TExp (A :: Γ) B
+weaken1 e = ren wkren1 e
+
+weakening-ignores : ∀{Γ A} (e₁ : TCExp A) (γ : TSubst Γ []) →
+                    Sub≡ (λ x₁ → ssubst (singγ e₁) (ren wkren1 (γ x₁))) γ
+weakening-ignores e₁ γ x = subren (singγ e₁) wkren1 (γ x)  ≡≡ subid (γ x)
+
+-- Functional extensionality
+function-ext-log : ∀{Γ A B} {e e' : TExp Γ (A ⇒ B)} →
+                   (A :: Γ) ⊢ weaken1 e $ var Z ~ weaken1 e' $ var Z :: B →
+                   Γ ⊢ e ~ e' :: A ⇒ B
+function-ext-log {Γ} {A} {B} {e} {e'} leq {γ} {γ'} η e₁ e₁' leq'
+  with leq (extendLogicalEQΓ η leq')
+... | leq'' with subren (subComp (singγ e₁) (liftγ γ)) wkren1 e |
+                 subren (subComp (singγ e₁') (liftγ γ')) wkren1 e'
+... | eq1' | eq2' with eq1' ≡≡ subeq (weakening-ignores e₁ γ) e |
+                       eq2' ≡≡ subeq (weakening-ignores e₁' γ') e'
+... | eq1 | eq2 = ID.coe2 (LogicalEq B) (resp (λ x → x $ e₁) eq1) (resp (λ x → x $ e₁') eq2)  leq''
+
+function-ext-obs : ∀{Γ A B} {e e' : TExp Γ (A ⇒ B)} →
+                   (A :: Γ) ⊢ weaken1 e $ var Z ≅ weaken1 e' $ var Z :: B →
+                   Γ ⊢ e ≅ e' :: A ⇒ B
+function-ext-obs {e = e} {e' = e'} oeq = obs-contains-logical
+                                         (function-ext-log {e = e} {e' = e'} (logical-contains-obs oeq))
+
+-- Eta, essentially
+-- The important part of the proof is the def-beta and the function-ext-obs,
+-- but most of the actual work is fucking around with substitutions.
+function-eta-obs : ∀{Γ A B} (e : TExp Γ (A ⇒ B)) →
+                   Γ ⊢ e ≅ (Λ (weaken1 e $ var Z)) :: A ⇒ B
+function-eta-obs {Γ} {A} {B} e with
+  obs-sym (obs-contains-def (def-beta {e = ren (wk wkren1) (ren wkren1 e) $ var Z} {e' = var Z}))
+
+... | beta-eq with (subren (singγ (var Z)) (wk wkren1) (weaken1 e)) ≡≡
+                   (subren (λ x → singγ (var Z) (wk wkren1 x)) wkren1 e) ≡≡
+                   symm (subren emptyγ wkren1 e) ≡≡
+                   subid (weaken1 e)
+... | eq2 with resp (λ x → x $ var Z) eq2
+... | eq with ID.coe2 (ObservEq (A :: Γ) B) eq refl beta-eq
+... | oeq = function-ext-obs oeq
