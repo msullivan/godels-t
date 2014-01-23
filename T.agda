@@ -123,9 +123,9 @@ module GÖDEL-T where
   weaken-closed e = ren closed-wkγ e
 
   ---- dynamic semantics (and, implicitly, preservation)
-  data TVal : ∀{A} → TCExp A → Set where
-    val-zero : TVal zero
-    val-suc : ∀{e} → TVal e → TVal (suc e)
+  data TVal : ∀{Γ A} → TExp Γ A → Set where
+    val-zero : ∀{Γ} → TVal {Γ} zero
+    val-suc : ∀{Γ e} → TVal {Γ} e → TVal {Γ} (suc e)
     val-lam : ∀{A B} {e : TExp (A :: []) B} → TVal (Λ e)
 
   -- only worry about closed steps; embed preservation in the statement

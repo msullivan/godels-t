@@ -176,3 +176,66 @@ function-eta-obs {Γ} {A} {B} e with
 ... | eq2 with resp (λ x → x $ var Z) eq2
 ... | eq with ID.coe2 (ObservEq (A :: Γ) B) eq refl beta-eq
 ... | oeq = function-ext-obs oeq
+
+obs-equiv-nat-val : (e : TNat) → Σ[ n :: TNat ] (TVal n × ([] ⊢ e ≅ n :: nat))
+obs-equiv-nat-val e with ological-equiv-nat-val e
+obs-equiv-nat-val e | n , val , eq = n , val , obs-contains-logical eq
+
+
+-- OK, maybe we are trying this with numerals again. Argh.
+
+t-numeral : ∀{Γ} → Nat → TExp Γ nat
+t-numeral Z = zero
+t-numeral (S n) = suc (t-numeral n)
+
+numeral-val : ∀{Γ} → (n : Nat) → TVal {Γ} (t-numeral n)
+numeral-val Z = val-zero
+numeral-val (S n) = val-suc (numeral-val n)
+
+val-numeral : ∀{Γ} {e : TExp Γ nat} → TVal e → Σ[ n :: Nat ] (e ≡ t-numeral n)
+val-numeral val-zero = Z , Refl
+val-numeral (val-suc v) with val-numeral v
+... | n , eq = (S n) , (resp suc eq)
+
+
+numeral-subst-dontcare : ∀{Γ Γ'} (n : Nat) (γ : TSubst Γ Γ') → ssubst γ (t-numeral n) ≡ t-numeral n
+numeral-subst-dontcare Z γ = Refl
+numeral-subst-dontcare (S n) γ = resp suc (numeral-subst-dontcare n γ)
+
+
+--
+obs-equiv-numeral : (e : TNat) → Σ[ n :: Nat ] ([] ⊢ e ≅ t-numeral n :: nat)
+obs-equiv-numeral e with obs-equiv-nat-val e
+obs-equiv-numeral e | en , val , oeq with val-numeral val
+... | n , eq = n , (ID.coe1 (ObservEq [] nat e) eq oeq)
+
+
+dropSubstRel : ∀(R : CRel) {Γ A} {γ γ' : TSubst (A :: Γ) []} →
+               SubstRel R (A :: Γ) γ γ' →
+               SubstRel R Γ (dropγ γ) (dropγ γ')
+dropSubstRel R η n = η (S n)
+dropLogicalEqΓ = dropSubstRel LogicalEq
+
+-- Allow induction over nats, essentially
+function-induction-log : ∀{Γ A} {e e' : TExp (nat :: Γ) A} →
+                         ((n : Nat) → Γ ⊢ ssubst (singγ (t-numeral n)) e ~
+                                          ssubst (singγ (t-numeral n)) e' :: A) →
+                         (nat :: Γ) ⊢ e ~ e' :: A
+function-induction-log {Γ} {A} {e} {e'} f {γ} {γ'} η
+  with η Z | obs-equiv-numeral (γ Z)
+... | n-eq | n , oeq-n with f n (dropLogicalEqΓ η)
+... | butt with subcomp (dropγ γ) (singγ (t-numeral n)) e | subcomp (dropγ γ') (singγ (t-numeral n)) e'
+... | lol1 | lol2 with subeq (compose-subst-noob (dropγ γ) (t-numeral n)) e |
+                       subeq (compose-subst-noob (dropγ γ') (t-numeral n)) e'
+... | lol1' | lol2' with ID.coe2 (LogicalEq A) (symm lol1 ≡≡ symm lol1') (symm lol2 ≡≡ symm lol2') butt
+... | wtf with ID.coe2
+               (λ x y → LogicalEq A
+                        (ssubst (extendγ (dropγ γ) x) e)
+                        (ssubst (extendγ (dropγ γ') y) e'))
+               (numeral-subst-dontcare n (dropγ γ)) (numeral-subst-dontcare n (dropγ γ')) wtf
+... | wtf' with ological-refl e (extendLogicalEQΓ (dropLogicalEqΓ (logicalγ-refl {x = γ})) (obs-consistent oeq-n))
+... | leq-e with ID.coe2 (LogicalEq A) (symm (subeq (drop-fix γ) e)) Refl leq-e
+... | leq-e' with ological-refl e' (extendLogicalEQΓ (dropLogicalEqΓ (logicalγ-refl {x = γ'}))
+                                    (kleene-trans (kleene-sym n-eq) (obs-consistent oeq-n)))
+... | leq-e2 with ID.coe2 (LogicalEq A) (symm (subeq (drop-fix γ') e')) Refl leq-e2
+... | leq-e2' = logical-trans leq-e' (logical-trans wtf' (logical-sym leq-e2'))

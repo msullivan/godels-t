@@ -24,7 +24,7 @@ module Progress where
   ... | prog-step D' = prog-step (step-suc D')
   progress (rec e e₀ es) with progress e
   progress (rec .zero e₀ es) | prog-val val-zero = prog-step step-rec-z
-  progress (rec .(suc e) e₀ es) | prog-val (val-suc {e} y) = prog-step (step-rec-s y)
+  progress (rec .(suc _) e₀ es) | prog-val (val-suc  y) = prog-step (step-rec-s y)
   ... | prog-step D = prog-step (step-rec D)
 
 

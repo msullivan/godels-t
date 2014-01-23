@@ -197,6 +197,11 @@ ological-consistent leq with leq (emptyLogicalEqΓ {γ = emptyγ} {γ' = emptyγ
 ... | keq = ID.coe2 KleeneEq (subid _) (subid _) keq
 
 
+ological-equiv-nat-val : (e : TNat) → Σ[ n :: TNat ] (TVal n × ([] ⊢ e ~ n :: nat))
+ological-equiv-nat-val e with ological-consistent {e = e} {e' = e} (ological-refl e)
+... | kleeneq n val E1 E2 = n , (val , (closed-logical-imp-open (kleeneq n val E1 eval-refl)))
+
+
 log-is-con-congruence : IsConsistentCongruence OLogicalEq
 log-is-con-congruence = record { equiv = ological-is-equivalence
                                ; cong = ological-is-congruence
