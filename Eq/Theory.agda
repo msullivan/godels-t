@@ -239,3 +239,13 @@ function-induction-log {Γ} {A} {e} {e'} f {γ} {γ'} η
                                     (kleene-trans (kleene-sym n-eq) (obs-consistent oeq-n)))
 ... | leq-e2 with ID.coe2 (LogicalEq A) (symm (subeq (drop-fix γ') e')) Refl leq-e2
 ... | leq-e2' = logical-trans leq-e' (logical-trans wtf' (logical-sym leq-e2'))
+
+
+function-induction-obs : ∀{Γ A} {e e' : TExp (nat :: Γ) A} →
+                         ((n : Nat) → Γ ⊢ ssubst (singγ (t-numeral n)) e ≅
+                                          ssubst (singγ (t-numeral n)) e' :: A) →
+                         (nat :: Γ) ⊢ e ≅ e' :: A
+function-induction-obs {Γ} {A} {e} {e'} f =
+                           obs-contains-logical
+                            (function-induction-log {Γ} {A} {e} {e'}
+                             (λ n → logical-contains-obs (f n)))
