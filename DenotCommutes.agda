@@ -3,9 +3,16 @@ module DenotCommutes where
 open import Prelude
 open import T
 
----- incomplete proof that the denotational
----- semantics commute with the dynamics
+---- Proof that dynamic semantics commute with denotational semantics
 
+-- Proving that the dynamic semantics and the denotational semantics
+-- commute (if we are using regular equality as our equality in the
+-- denotational semantics) basically requires extensionality, since we
+-- need to show that things at function type are equal.
+
+-- Since I need extensionality anyways, I use it for things where it isn't
+-- as necessary, since it was expedient. My experience in SubstTheory was
+-- that it might actually be cleaner to not do that, though.
 postulate iext : {A : Set}{B : A → Set}{f : ∀ {a} → B a}{g : ∀{a} → B a} →
                  (∀ a → f {a} ≡ g {a}) →
                  _≡_ { A = {a : A} → B a} f g
@@ -15,71 +22,98 @@ postulate ext : {A : Set}{B : A → Set}{f : ∀ a → B a}{g : ∀ a → B a} �
 
 
 module DenotCommutes where
-  ---- dynamic semantics commute with denotational semantics
-  lift-nγ : ∀{Γ Γ'}K → TSubst Γ Γ' → TSubst (K ++ Γ) (K ++ Γ')
-  lift-nγ [] γ = γ
-  lift-nγ (A :: K) γ = liftγ (lift-nγ K γ)
 
-  data MList : Ctx -> Set where
-    [] : MList []
-    _::_ : ∀{Γ A} → interp A → MList Γ → MList (A :: Γ)
+  -- Show that renaming and substitution commute with denotational semantics
+  -- in the appropriate sense. This mirrors a bunch of the machinery in SubstTheory.
 
-  extend-nη : ∀{Γ K} → meaningη Γ → MList K → meaningη (K ++ Γ)
-  extend-nη η [] = η
-  extend-nη η (x :: xs) = extendη (extend-nη η xs) x
+  -- First stuff for renaming, lifting
+  meaning-ren-wk : ∀{A B Γ Γ'} → (γ : TRen Γ Γ') →
+                   (η : meaningη Γ') →
+                   (a : interp A) →
+                   (x : B ∈ A :: Γ) →
+                   extendη η a (wk γ x) ≡ extendη (λ y → η (γ y)) a x
+  meaning-ren-wk γ η a Z = Refl
+  meaning-ren-wk γ η a (S x) = Refl
+
+  meaning-ren : ∀{A Γ Γ'} → (γ : TRen Γ Γ') →
+                (e : TExp Γ A) →
+                (η : meaningη Γ') →
+                meaning (ren γ e) η ≡ meaning e (η o γ)
+  meaning-ren γ (var x) η = Refl
+  meaning-ren γ (Λ e) η = ext
+    (λ a → (meaning-ren (wk γ) e (extendη η a)) ≡≡
+           (resp (meaning e) (iext (λ B → ext (λ x → meaning-ren-wk γ η a x)))))
+  meaning-ren γ (e $ e') η = resp2 (λ x y → x y) (meaning-ren γ e η) (meaning-ren γ e' η)
+  meaning-ren γ zero η = Refl
+  meaning-ren γ (suc e) η = resp S (meaning-ren γ e η)
+  meaning-ren γ (rec en e0 es) η =
+    resp3 NAT.fold
+    (meaning-ren γ e0 η)
+    (ext (λ _ → ext
+                  (λ a →
+                     meaning-ren (wk γ) es (extendη η a) ≡≡
+                     resp (meaning es)
+                     (iext (λ B → ext (λ x → meaning-ren-wk γ η a x))))))
+    (meaning-ren γ en η)
 
 
-  sn-ren : ∀{Γ}K → TRen Γ (K ++ Γ)
-  sn-ren [] = renId
-  sn-ren (x :: xs) = renComp S (sn-ren xs)
+  meaning-sub-lift : ∀{A B Γ Γ'} → (γ : TSubst Γ Γ') →
+                     (η : meaningη Γ') →
+                     (a : interp A) →
+                     (x : B ∈ A :: Γ) →
+                     meaning (liftγ γ x) (extendη η a) ≡
+                     extendη (λ y → meaning (γ y) η) a x
+  meaning-sub-lift γ η a Z = Refl
+  meaning-sub-lift γ η a (S x) =
+    (meaning-ren S (γ x) (extendη η a)) ≡≡
+    resp (meaning (γ x)) (iext (λ C → ext (λ x → Refl)))
 
-  ren-sn : ∀{Γ A}K → TExp Γ A → TExp (K ++ Γ) A
-  ren-sn K e = ren (sn-ren K) e
+
+  -- Define a notion of how to commute a substitution with a
+  -- denotational interpretation
+  substMeaning : ∀{A Γ Γ'} → (γ : TSubst Γ Γ') →
+                 (f : meaningη Γ → interp A) →
+                 (meaningη Γ' → interp A)
+  substMeaning γ f η = f (λ x → meaning (γ x) η)
+
+  -- And show that that notion actually does commute with it.
+  meaning-sub : ∀{A Γ Γ'} → (γ : TSubst Γ Γ') →
+                (e : TExp Γ A) →
+                (η : meaningη Γ') →
+                meaning (ssubst γ e) η ≡ substMeaning γ (meaning e) η
+  meaning-sub γ (var x) η = Refl
+  meaning-sub γ (Λ e) η = ext
+    (λ a → (meaning-sub (liftγ γ) e (extendη η a))
+    ≡≡ resp (meaning e) (iext (λ B → ext (λ x → meaning-sub-lift γ η a x))))
+  meaning-sub γ (e $ e') η = resp2 (λ x y → x y) (meaning-sub γ e η) (meaning-sub γ e' η)
+  meaning-sub γ zero η = Refl
+  meaning-sub γ (suc e) η = resp S (meaning-sub γ e η)
+  meaning-sub γ (rec en e0 es) η =
+   resp3 NAT.fold
+   (meaning-sub γ e0 η)
+   (ext (λ _ → ext
+                 (λ a →
+                    meaning-sub (liftγ γ) es (extendη η a) ≡≡
+                    resp (meaning es)
+                    (iext (λ B → ext (λ x → meaning-sub-lift γ η a x))))))
+   (meaning-sub γ en η)
+
+  meaning-sing : ∀{A B}(e' : TCExp B) →
+                 (x : A ∈ [ B ]) →
+                 meaning (singγ e' x) emptyη ≡ extendη emptyη (meaning e' emptyη) x
+  meaning-sing e Z = Refl
+  meaning-sing e (S x) = Refl
 
 
-  meaning-wk : ∀{A Γ} (e : TExp Γ A) (η : meaningη Γ) (Γ' : Ctx) (xs : MList Γ') →
-                meaning e η ≡
-                meaning (ren-sn Γ' e) (extend-nη η xs)
-  meaning-wk (var x) η [] [] = Refl
-  meaning-wk (var x) η (A' :: Γ') (x' :: xs) = meaning-wk (var x) η Γ' xs
-  meaning-wk (Λ e) η Γ' xs = {!!}
-  meaning-wk (e₁ $ e₂) η Γ' xs = {!!}
-  meaning-wk zero η Γ' xs = Refl
-  meaning-wk (suc e) η Γ' xs = {!!}
-  meaning-wk (rec e e₀ es) η Γ' xs = {!!}
-
-{-
-  meaning-wk {A ⇒ _} (Λ e) η x Γ' xs  = ext lemma
-    where lemma : (a : interp A) → meaning e (extendη η a) ≡
-                                   meaning (ren (wk S) e) (extendη (extendη η x) a)
-          lemma a with meaning-wk e (extendη η a) x
-          ... | butt = {!!}
-  meaning-wk (e₁ $ e₂) η x Γ' xs  = resp2 (id _) (meaning-wk e₁ η x) (meaning-wk e₂ η x)
-  meaning-wk zero η x Γ' xs  = Refl
-  meaning-wk (suc e) η x Γ' xs  = {!!}
-  meaning-wk (rec e e₀ es) η x Γ' xs  = {!!}
--}
-  meaning-subst : ∀{A B}Γ (xs : MList Γ) (e' : TCExp B)(e : TExp (Γ ++ [ B ]) A) →
-                  meaning e (extend-nη (extendη emptyη (cmeaning e')) xs) ≡
-                  meaning (ssubst (lift-nγ Γ (singγ e')) e) (extend-nη emptyη xs)
-  meaning-subst [] [] e' (var Z) = Refl
-  meaning-subst [] [] e' (var (S ()))
-  meaning-subst (C :: Γ) (x :: xs) e' (var Z) = Refl
-  meaning-subst (C :: Γ) (x :: xs) e' (var (S n)) =
-      meaning-subst Γ xs e' (var n) ≡≡ symm {!!}
---meaning-wk (lift-nγ Γ (singγ e') n) (extend-nη emptyη xs) x
-  meaning-subst Γ xs e' (Λ e) =
-      ext (λ x → meaning-subst (_ :: Γ) (x :: xs) e' e)
-  meaning-subst Γ xs e' (e₁ $ e₂) =
-      resp2 (id _) (meaning-subst Γ xs e' e₁) (meaning-subst Γ xs e' e₂)
-  meaning-subst Γ xs e' zero = Refl
-  meaning-subst Γ xs e' (suc e) = resp S (meaning-subst Γ xs e' e)
-  meaning-subst Γ xs e' (rec e e₀ es) = {!!}
-
+  -- The basic fact we need about substitution.
   meaning-subst' : ∀{A B}(e' : TCExp B)(e : TExp [ B ] A) →
                   meaning e (extendη emptyη (cmeaning e')) ≡
                   cmeaning (subst e' e)
-  meaning-subst' = meaning-subst [] []
+  meaning-subst' e' e =
+    symm (meaning-sub (singγ e') e emptyη ≡≡
+         resp (meaning e) (iext (λ A → ext (λ x → meaning-sing e' x))))
+
+
 
   meaning-steps : ∀{A}{e e' : TCExp A} → (e ~> e') → cmeaning e ≡ cmeaning e'
   meaning-steps {e = e₁ $ e₂} (step-app-l St) =
