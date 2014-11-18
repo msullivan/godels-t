@@ -26,6 +26,17 @@ module DenotCommutes where
   -- Show that renaming and substitution commute with denotational semantics
   -- in the appropriate sense. This mirrors a bunch of the machinery in SubstTheory.
 
+  -- Some equality related stuff
+
+  Meaning≡ : ∀ {Γ}(f g : meaningη Γ) → Set
+  Meaning≡ f g = ∀ {A} x → f {A} x ≡ g {A} x
+
+  -- We could prove this lemma manually but we have ext so whatever.
+  meaningeq : ∀{Γ A} {f g : meaningη Γ} → Meaning≡ f g → (e : TExp Γ A) →
+               meaning e f ≡ meaning e g
+  meaningeq eq e = resp (meaning e) (iext (λ B → ext (λ x → eq x)))
+
+
   -- First stuff for renaming, lifting
   meaning-ren-wk : ∀{A B Γ Γ'} → (γ : TRen Γ Γ') →
                    (η : meaningη Γ') →
@@ -40,20 +51,17 @@ module DenotCommutes where
                 (η : meaningη Γ') →
                 meaning (ren γ e) η ≡ meaning e (η o γ)
   meaning-ren γ (var x) η = Refl
-  meaning-ren γ (Λ e) η = ext
-    (λ a → (meaning-ren (wk γ) e (extendη η a)) ≡≡
-           (resp (meaning e) (iext (λ B → ext (λ x → meaning-ren-wk γ η a x)))))
+  meaning-ren γ (Λ e) η =
+    ext (λ M →
+     meaning-ren (wk γ) e (extendη η M) ≡≡ meaningeq (meaning-ren-wk γ η M) e)
   meaning-ren γ (e $ e') η = resp2 (λ x y → x y) (meaning-ren γ e η) (meaning-ren γ e' η)
   meaning-ren γ zero η = Refl
   meaning-ren γ (suc e) η = resp S (meaning-ren γ e η)
   meaning-ren γ (rec en e0 es) η =
     resp3 NAT.fold
     (meaning-ren γ e0 η)
-    (ext (λ _ → ext
-                  (λ a →
-                     meaning-ren (wk γ) es (extendη η a) ≡≡
-                     resp (meaning es)
-                     (iext (λ B → ext (λ x → meaning-ren-wk γ η a x))))))
+    (ext (λ _ → ext (λ M →
+      meaning-ren (wk γ) es (extendη η M) ≡≡ meaningeq (meaning-ren-wk γ η M) es)))
     (meaning-ren γ en η)
 
 
@@ -82,20 +90,17 @@ module DenotCommutes where
                 (η : meaningη Γ') →
                 meaning (ssubst γ e) η ≡ substMeaning γ (meaning e) η
   meaning-sub γ (var x) η = Refl
-  meaning-sub γ (Λ e) η = ext
-    (λ a → (meaning-sub (liftγ γ) e (extendη η a))
-    ≡≡ resp (meaning e) (iext (λ B → ext (λ x → meaning-sub-lift γ η a x))))
+  meaning-sub γ (Λ e) η =
+    ext (λ M →
+      meaning-sub (liftγ γ) e (extendη η M) ≡≡ meaningeq (meaning-sub-lift γ η M) e)
   meaning-sub γ (e $ e') η = resp2 (λ x y → x y) (meaning-sub γ e η) (meaning-sub γ e' η)
   meaning-sub γ zero η = Refl
   meaning-sub γ (suc e) η = resp S (meaning-sub γ e η)
   meaning-sub γ (rec en e0 es) η =
    resp3 NAT.fold
    (meaning-sub γ e0 η)
-   (ext (λ _ → ext
-                 (λ a →
-                    meaning-sub (liftγ γ) es (extendη η a) ≡≡
-                    resp (meaning es)
-                    (iext (λ B → ext (λ x → meaning-sub-lift γ η a x))))))
+   (ext (λ _ → ext (λ M →
+     meaning-sub (liftγ γ) es (extendη η M) ≡≡ meaningeq (meaning-sub-lift γ η M) es)))
    (meaning-sub γ en η)
 
   meaning-sing : ∀{A B}(e' : TCExp B) →
