@@ -140,3 +140,8 @@ data _==_ : ∀{Γ} {A} → TExp Γ A → TExp Γ A → Set where
 
 DefEq : TRel
 DefEq Γ A = _==_ {Γ} {A}
+
+
+---- Denotational equivalence
+CDenotationalEq : CRel
+CDenotationalEq A e e' = cmeaning e ≡ cmeaning e'

@@ -136,4 +136,8 @@ module DenotCommutes where
   meaning-steps {e = rec (suc e) e₀ es} (step-rec-s _) = meaning-subst (rec e e₀ es) es
 
 
+  meaning-eval : ∀{A}{e e' : TCExp A} → (e ~>* e') → cmeaning e ≡ cmeaning e'
+  meaning-eval eval-refl = Refl
+  meaning-eval (eval-cons S1 E) = meaning-steps S1 ≡≡ meaning-eval E
+
 open DenotCommutes public
