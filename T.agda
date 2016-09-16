@@ -5,8 +5,8 @@ open import Prelude
 module GÖDEL-T where
 
   -- Core syntax
-  infixr 5 _⇒_
-  infixl 5 _$_
+  infixr 30 _⇒_
+  infixl 30 _$_
   data TTp : Set where
     nat : TTp
     _⇒_ : (A B : TTp) → TTp

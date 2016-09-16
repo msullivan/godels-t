@@ -6,6 +6,7 @@ open import SubstTheory
 
 module Contexts where
 
+  infix 60 _e$_ _$e_
   -- Has a hole of type (Γ ⊢ A), produces a term of type (Γ' ⊢ A')
   data TCtx (Γ : Ctx) (A : TTp) : (Γ' : Ctx) → (A' : TTp) → Set where
     ∘ : TCtx Γ A Γ A
@@ -32,6 +33,7 @@ module Contexts where
   rec2 e C₀ es < e' > = rec e (C₀ < e' >) es
   rec3 e e₀ Cs < e' > = rec e e₀ (Cs < e' >)
 
+  infix 70 _<<_>> _<_>
   _<<_>> : ∀{Γ A Γ' A' Γ'' A''} → TCtx Γ' A' Γ'' A'' → TCtx Γ A Γ' A' →
             TCtx Γ A Γ'' A''
   ∘ << C' >> = C'

@@ -5,6 +5,8 @@ open import T
 open import Contexts
 import SubstTheory
 
+infix 30 _⊆_ _≃_ _≃_
+
 -- General stuff about relations
 Rel : Set → Set1
 Rel A = A → A → Set

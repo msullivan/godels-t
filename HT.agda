@@ -35,12 +35,14 @@ module HT where
   -- Extract that the lhs must halt if its application to something halts.
   -- I think this isn't actually useful, though, since to use it we would
   -- need to be able to produce an argument to the function.
+  {-
   lhs-halt : {A B : TTp} {e : TCExp (A ⇒ B)} {e' : TCExp A} →
               THalts (e $ e') → THalts e
   lhs-halt (halts eval-refl ())
   lhs-halt (halts (eval-cons (step-app-l S1) E) val) with lhs-halt (halts E val)
   ... | halts E' val' = halts (eval-cons S1 E') val'
   lhs-halt (halts (eval-cons step-beta E) val) = halts eval-refl val-lam
+  -}
 
   -- I think the induction principle for this datatype is the definition of
   -- HTω from http://www.cs.cmu.edu/~rwh/courses/typesys/hw3/hw3-handout.pdf
